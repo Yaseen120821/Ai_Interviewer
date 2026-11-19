@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+*/node_modules/
+.pnp
+.pnp.js
+
+# Build and distribution outputs
+dist/
+dist-ssr/
+build/
+out/
+.vite/
+client/dist/
+
+# Environment variables & secrets
+.env
+.env.*
+*.env
+*.env.*
+!.env.example
+!client/.env.example
+!server/.env.example
+*.pem
+*.key
+*.cert
+id_rsa*
+
+# Logs & debugging
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing, Scratch & temporary analysis
+scratch/
+coverage/
+.nyc_output/
+reports/
+
+# Candidate uploads & dynamic storage (keep directory structure with .gitkeep)
+server/uploads/resumes/*
+!server/uploads/resumes/.gitkeep
+uploads/*
+!uploads/.gitkeep
+
+# Local databases & lock caches
+*.sqlite
+*.sqlite-journal
+*.db

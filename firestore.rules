@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ── Helper Verification Functions ──────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ── 1. Users Profile Collection ────────────────────────────────────────────
+    // Only the authenticated account owner can view or edit their profile data
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ── 2. Companies Collection ────────────────────────────────────────────────
+    // Authenticated candidates can read recruitment patterns; updates reserved for admins
+    match /companies/{companyId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // ── 3. Interviews Collection ───────────────────────────────────────────────
+    // Strictly isolates interview records to the candidate who initiated them
+    match /interviews/{interviewId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ── 4. Interview Phases Collection ─────────────────────────────────────────
+    match /interview_phases/{phaseId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ── 5. Questions Collection ────────────────────────────────────────────────
+    // Role questions and scenario prompts are readable by authenticated candidates
+    match /questions/{questionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // ── 6. Responses Collection ────────────────────────────────────────────────
+    // Candidate answers and transcripts are private to the candidate
+    match /responses/{responseId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ── 7. Results Collection ──────────────────────────────────────────────────
+    // Feedback, metrics, and report scores cannot be accessed or tampered with by other candidates
+    match /results/{resultId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ── 8. Resumes Collection ──────────────────────────────────────────────────
+    // Resumes and extracted metadata are strictly scoped to the candidate owner
+    match /resumes/{resumeId} {
+      allow read, delete: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
+

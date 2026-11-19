@@ -1,1 +1,129 @@
-@import "tailwindcss";
+/* ─── Google Fonts ─────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+/* ─── InterviewPilot Design Tokens ─────────────────────────────────────────── */
+:root {
+  --font-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-display: 'Anton', impact, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+
+  /* Colors */
+  --bg:           #F2EEE6;
+  --surface:      #FFFFFF;
+  --card:         #FFFFFF;
+  --card-raised:  #FAF8F5;
+
+  /* Primary & Text */
+  --ink:          #0A0A0A;
+  --text:         #0A0A0A;
+  --text-2:       #6B675F;
+  --text-3:       #9C988F;
+  --muted:        #6B675F;
+
+  /* Accents */
+  --yellow:       #F4CF63;
+  --accent:       #FF5A1F;
+  --accent-hover: #E04E19;
+  --orange:       #FF5A1F;
+  --line:         #E3DED2;
+  --border:       #E3DED2;
+  --border-hover: #0A0A0A;
+
+  /* Status */
+  --success:      #1E7E34;
+  --success-dim:  rgba(30, 126, 52, 0.12);
+  --error:        #EC4F5F;
+  --error-dim:    rgba(236, 79, 95, 0.12);
+  --warning:      #F4CF63;
+  --warning-dim:  rgba(244, 207, 99, 0.25);
+  --info:         #0A0A0A;
+  --info-dim:     rgba(10, 10, 10, 0.08);
+
+  /* Shadows */
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md:    0 8px 24px rgba(0,0,0,0.06);
+  --shadow-lg:    0 16px 40px rgba(0,0,0,0.08);
+
+  /* Radii */
+  --r-sm:   8px;
+  --r-md:   12px;
+  --r-lg:   16px;
+  --r-xl:   24px;
+  --r-full: 9999px;
+
+  /* Transitions */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 120ms var(--ease);
+  --t-base: 220ms var(--ease);
+
+  /* Navbar */
+  --navbar-h: 68px;
+
+  /* Legacy aliases */
+  --color-bg:           var(--bg);
+  --color-surface:      var(--surface);
+  --color-card:         var(--card);
+  --color-accent:       var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-text:         var(--text);
+  --color-text-2:       var(--text-2);
+  --color-text-3:       var(--text-3);
+  --color-border:       var(--border);
+  --color-border-hover: var(--border-hover);
+}
+
+/* ─── Global Reset & Base Styles ────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--r-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
