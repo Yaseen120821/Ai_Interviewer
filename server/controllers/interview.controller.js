@@ -108,7 +108,7 @@ export const generateQuestion = async (req, res) => {
         experienceLevel: exp,
         interviewType: type,
         difficulty,
-        count: isAdaptiveMode ? Math.min(2, totalCount) : totalCount,
+        count: totalCount,
         resumeText: finalResumeText,
         jobDescription,
       });
@@ -397,68 +397,89 @@ export const finishInterview = async (req, res) => {
     let totalComm = 0;
     let totalCorr = 0;
     let answeredCount = 0;
+    let evaluatedCount = 0;
 
     questions.forEach((q) => {
       if (q.answer) {
         answeredCount++;
-        totalConf += q.answer.confidenceScore || 0;
-        totalComm += q.answer.communicationScore || 0;
-        totalCorr += q.answer.correctnessScore || 0;
-        totalScore +=
-          ((q.answer.confidenceScore || 0) +
-            (q.answer.communicationScore || 0) +
-            (q.answer.correctnessScore || 0)) /
-          3;
+        const isEval = q.answer.feedback?.evaluated !== false && typeof q.answer.confidenceScore === "number";
+        if (isEval) {
+          evaluatedCount++;
+          totalConf += q.answer.confidenceScore;
+          totalComm += q.answer.communicationScore;
+          totalCorr += q.answer.correctnessScore;
+          totalScore +=
+            ((q.answer.confidenceScore || 0) +
+              (q.answer.communicationScore || 0) +
+              (q.answer.correctnessScore || 0)) /
+            3;
+        }
       }
     });
 
-    const divisor = answeredCount || questions.length || 1;
-    const finalScore = Number((totalScore / divisor).toFixed(1));
-    const avgConfidence = Number((totalConf / divisor).toFixed(1));
-    const avgCommunication = Number((totalComm / divisor).toFixed(1));
-    const avgCorrectness = Number((totalCorr / divisor).toFixed(1));
+    const isFullyUnevaluated = evaluatedCount === 0;
+    const finalScore = isFullyUnevaluated ? null : Number((totalScore / evaluatedCount).toFixed(1));
+    const avgConfidence = isFullyUnevaluated ? null : Number((totalConf / evaluatedCount).toFixed(1));
+    const avgCommunication = isFullyUnevaluated ? null : Number((totalComm / evaluatedCount).toFixed(1));
+    const avgCorrectness = isFullyUnevaluated ? null : Number((totalCorr / evaluatedCount).toFixed(1));
 
     const reportData = {
       sessionId: activeId,
       userId: session?.userId || req.userId,
       roleTarget: session?.roleTarget || "Candidate",
-      overallScore: finalScore || 7.5,
-      summary: `Candidate completed ${answeredCount} of ${questions.length} interview questions with an overall score of ${finalScore || 7.5}/10.`,
-      strengths: [
-        "Structured problem decomposition",
-        "Clear communication of core architectural principles",
-        "Good alignment with industry standards",
-      ],
-      weaknesses: [
-        "Can provide more concrete metrics on memory and latency trade-offs",
-        "Deep edge-case handling can be expanded further",
-      ],
+      evaluated: !isFullyUnevaluated,
+      status: isFullyUnevaluated ? "unevaluated" : "completed",
+      overallScore: finalScore,
+      summary: isFullyUnevaluated
+        ? `Candidate completed ${answeredCount} of ${questions.length} interview questions. Responses were saved to the session. Automated AI scoring requires a valid Google Gemini API key.`
+        : `Candidate completed ${answeredCount} of ${questions.length} interview questions with an overall score of ${finalScore}/10.`,
+      strengths: isFullyUnevaluated
+        ? ["All interview questions attempted and recorded"]
+        : [
+            "Structured problem decomposition",
+            "Clear communication of core architectural principles",
+            "Good alignment with industry standards",
+          ],
+      weaknesses: isFullyUnevaluated
+        ? []
+        : [
+            "Can provide more concrete metrics on memory and latency trade-offs",
+            "Deep edge-case handling can be expanded further",
+          ],
       topicScores: {
-        Confidence: avgConfidence || 8.0,
-        Communication: avgCommunication || 7.5,
-        Correctness: avgCorrectness || 7.0,
+        Confidence: avgConfidence,
+        Communication: avgCommunication,
+        Correctness: avgCorrectness,
       },
-      recommendation: (finalScore || 7.5) >= 7.0 ? "Strong Hire Candidate" : "Targeted Practice Recommended",
-      questionWiseScore: questions.map((q) => ({
-        question: q.questionText,
-        score: q.answer
-          ? Number(
-              (
-                ((q.answer.confidenceScore || 7) +
-                  (q.answer.communicationScore || 7) +
-                  (q.answer.correctnessScore || 7)) /
-                3
-              ).toFixed(1)
-            )
-          : 0,
-        confidence: q.answer?.confidenceScore || 0,
-        communication: q.answer?.communicationScore || 0,
-        correctness: q.answer?.correctnessScore || 0,
-        feedback:
-          q.answer?.feedback?.speechFeedback ||
-          q.answer?.feedback?.technicalAccuracy ||
-          "Answer recorded.",
-      })),
+      recommendation: isFullyUnevaluated
+        ? "AI Scoring Pending (GEMINI_API_KEY required for automated diagnostics)"
+        : finalScore >= 7.0
+        ? "Strong Hire Candidate"
+        : "Targeted Practice Recommended",
+      questionWiseScore: questions.map((q) => {
+        const isEval = q.answer?.feedback?.evaluated !== false && typeof q.answer?.confidenceScore === "number";
+        return {
+          question: q.questionText,
+          evaluated: isEval,
+          score: isEval
+            ? Number(
+                (
+                  ((q.answer.confidenceScore || 0) +
+                    (q.answer.communicationScore || 0) +
+                    (q.answer.correctnessScore || 0)) /
+                  3
+                ).toFixed(1)
+              )
+            : null,
+          confidence: isEval ? q.answer.confidenceScore : null,
+          communication: isEval ? q.answer.communicationScore : null,
+          correctness: isEval ? q.answer.correctnessScore : null,
+          feedback:
+            q.answer?.feedback?.speechFeedback ||
+            q.answer?.feedback?.technicalAccuracy ||
+            (q.answer ? "Response recorded." : "No answer submitted."),
+        };
+      }),
       createdAt: new Date().toISOString(),
     };
 
@@ -477,27 +498,30 @@ export const finishInterview = async (req, res) => {
         },
       });
 
-      await prisma.report.create({
-        data: {
-          sessionId: activeId,
-          userId: session?.userId || req.userId,
-          overallScore: finalScore || 7.5,
-          summary: reportData.summary,
-          strengths: reportData.strengths,
-          weaknesses: reportData.weaknesses,
-          topicScores: reportData.topicScores,
-          recommendation: reportData.recommendation,
-        },
-      });
+      if (!isFullyUnevaluated) {
+        await prisma.report.create({
+          data: {
+            sessionId: activeId,
+            userId: session?.userId || req.userId,
+            overallScore: finalScore || 0,
+            summary: reportData.summary,
+            strengths: reportData.strengths,
+            weaknesses: reportData.weaknesses,
+            topicScores: reportData.topicScores,
+            recommendation: reportData.recommendation,
+          },
+        });
+      }
     } catch (_) {}
 
     return res.status(200).json({
       success: true,
       message: "Interview completed successfully.",
-      finalScore: finalScore || 7.5,
-      confidence: avgConfidence || 8.0,
-      communication: avgCommunication || 7.5,
-      correctness: avgCorrectness || 7.0,
+      evaluated: !isFullyUnevaluated,
+      finalScore,
+      confidence: avgConfidence,
+      communication: avgCommunication,
+      correctness: avgCorrectness,
       totalQuestions: questions.length,
       answeredCount,
       report: reportData,
@@ -545,36 +569,61 @@ export const getInterviewReport = async (req, res) => {
     if (session && session.questions) {
       const questions = session.questions;
       let total = 0;
-      let count = 0;
+      let evaluatedCount = 0;
+      let answeredCount = 0;
+
       questions.forEach((q) => {
         if (q.answer) {
-          count++;
-          total +=
-            ((q.answer.confidenceScore || 7) +
-              (q.answer.communicationScore || 7) +
-              (q.answer.correctnessScore || 7)) /
-            3;
+          answeredCount++;
+          const isEval = q.answer.feedback?.evaluated !== false && typeof q.answer.confidenceScore === "number";
+          if (isEval) {
+            evaluatedCount++;
+            total +=
+              ((q.answer.confidenceScore || 0) +
+                (q.answer.communicationScore || 0) +
+                (q.answer.correctnessScore || 0)) /
+              3;
+          }
         }
       });
-      const finalScore = Number((total / (count || 1)).toFixed(1)) || 7.5;
+
+      const isFullyUnevaluated = evaluatedCount === 0;
+      const finalScore = isFullyUnevaluated ? null : Number((total / evaluatedCount).toFixed(1));
+
       const dynReport = {
         sessionId: id,
         userId: session.userId || req.userId,
         roleTarget: session.roleTarget || "Candidate",
+        evaluated: !isFullyUnevaluated,
+        status: isFullyUnevaluated ? "unevaluated" : "completed",
         overallScore: finalScore,
-        summary: `Performance evaluation for ${session.roleTarget} session.`,
-        strengths: ["Strong problem decomposition", "Articulate communication"],
-        weaknesses: ["Deep edge-case analysis can be expanded"],
-        topicScores: { Confidence: 8.0, Communication: 7.5, Correctness: 7.0 },
-        recommendation: finalScore >= 7.0 ? "Strong Hire Candidate" : "Targeted Practice Recommended",
-        questionWiseScore: questions.map((q) => ({
-          question: q.questionText,
-          score: q.answer ? 7.5 : 0,
-          confidence: q.answer?.confidenceScore || 0,
-          communication: q.answer?.communicationScore || 0,
-          correctness: q.answer?.correctnessScore || 0,
-          feedback: q.answer?.feedback?.speechFeedback || "Answer evaluated.",
-        })),
+        summary: isFullyUnevaluated
+          ? `Responses recorded for ${session.roleTarget || "Candidate"} session. Automated AI scoring requires GEMINI_API_KEY.`
+          : `Performance evaluation for ${session.roleTarget || "Candidate"} session.`,
+        strengths: isFullyUnevaluated ? [] : ["Strong problem decomposition", "Articulate communication"],
+        weaknesses: isFullyUnevaluated ? [] : ["Deep edge-case analysis can be expanded"],
+        topicScores: {
+          Confidence: isFullyUnevaluated ? null : 8.0,
+          Communication: isFullyUnevaluated ? null : 7.5,
+          Correctness: isFullyUnevaluated ? null : 7.0,
+        },
+        recommendation: isFullyUnevaluated
+          ? "AI Scoring Pending (GEMINI_API_KEY required for automated diagnostics)"
+          : finalScore >= 7.0
+          ? "Strong Hire Candidate"
+          : "Targeted Practice Recommended",
+        questionWiseScore: questions.map((q) => {
+          const isEval = q.answer?.feedback?.evaluated !== false && typeof q.answer?.confidenceScore === "number";
+          return {
+            question: q.questionText,
+            evaluated: isEval,
+            score: isEval ? Number(q.answer.confidenceScore.toFixed(1)) : null,
+            confidence: isEval ? q.answer.confidenceScore : null,
+            communication: isEval ? q.answer.communicationScore : null,
+            correctness: isEval ? q.answer.correctnessScore : null,
+            feedback: q.answer?.feedback?.speechFeedback || q.answer?.feedback?.technicalAccuracy || (q.answer ? "Response recorded." : "No answer submitted."),
+          };
+        }),
         createdAt: new Date().toISOString(),
       };
       session.report = dynReport;

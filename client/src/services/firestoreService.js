@@ -67,10 +67,10 @@ export const firestoreService = {
     ensureFirebase("updateUserProfile");
     try {
       const userRef = doc(db, "users", uid);
-      await updateDoc(userRef, {
+      await setDoc(userRef, {
         ...updates,
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: true });
       return true;
     } catch (err) {
       console.warn("[firestoreService.updateUserProfile] Error:", err.message);

@@ -1,7 +1,8 @@
 // src/pages/interview/InterviewSessionPage.jsx
-// Complete Interactive Interview Workspace featuring AI Avatar, Voice Synthesis, STT, and Per-Question AI Evaluation.
+// MockMate AI Fullscreen Interactive Interview Workspace.
+// Features: Question-First Speech Narration, Strict Avatar State Machine, Fullscreen Loss Detection & Recovery.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { interviewService } from '../../services/interviewService';
 import { voiceService } from '../../services/voiceService';
@@ -16,10 +17,13 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   HelpCircle,
   ArrowLeft,
   Sparkles,
   Award,
+  Maximize2,
+  Volume2,
 } from 'lucide-react';
 
 export default function InterviewSessionPage() {
@@ -43,10 +47,85 @@ export default function InterviewSessionPage() {
   const [evalResult, setEvalResult] = useState(null);
 
   // Avatar & Voice state
-  const [avatarState, setAvatarState] = useState('idle'); // 'idle' | 'speaking' | 'listening' | 'thinking' | 'evaluating'
+  // State Machine: 'idle' | 'loading' | 'speaking' | 'listening' | 'processing' | 'error' | 'completed'
+  const [avatarState, setAvatarState] = useState('loading');
   const [avatarSubtitle, setAvatarSubtitle] = useState('');
-  const [avatarType, setAvatarType] = useState('robot'); // 'robot' | 'female_video' | 'male_video'
+  const [isQuestionReading, setIsQuestionReading] = useState(true); // Question-First: reading locked before answer starts
+  const [avatarType, setAvatarType] = useState(() => {
+    try {
+      return localStorage.getItem('mockmate_avatar_type') || localStorage.getItem('interviewpilot_avatar_type') || 'female_video';
+    } catch {
+      return 'female_video';
+    }
+  });
   const [isMuted, setIsMuted] = useState(false);
+
+  // Fullscreen state & monitoring
+  const [isFullscreenActive, setIsFullscreenActive] = useState(() => {
+    if (typeof document === 'undefined') return true;
+    return Boolean(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    );
+  });
+
+  // Track speech cycle for current question to avoid duplicates
+  const spokenQuestionIdRef = useRef(null);
+
+  // 1. Fullscreenchange listener: pauses narration and timer on Escape / exit
+  useEffect(() => {
+    const handleFsChange = () => {
+      const isFs = Boolean(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
+      setIsFullscreenActive(isFs);
+
+      if (!isFs) {
+        // Paused on exit
+        voiceService.pauseSpeaking();
+        voiceService.stopListening();
+        setIsRecording(false);
+      } else {
+        // Resumed
+        if (voiceService.isPaused) {
+          voiceService.resumeSpeaking();
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    document.addEventListener('mozfullscreenchange', handleFsChange);
+    document.addEventListener('MSFullscreenChange', handleFsChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+      document.removeEventListener('mozfullscreenchange', handleFsChange);
+      document.removeEventListener('MSFullscreenChange', handleFsChange);
+    };
+  }, []);
+
+  const handleReenterFullscreen = async () => {
+    const elem = document.documentElement;
+    const req = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.msRequestFullscreen || elem.mozRequestFullScreen;
+    if (req) {
+      try {
+        await req.call(elem);
+        setIsFullscreenActive(true);
+        if (voiceService.isPaused) {
+          voiceService.resumeSpeaking();
+        }
+      } catch (err) {
+        console.warn('Re-entering fullscreen denied', err);
+      }
+    }
+  };
 
   // 1. Load Session & Questions with Immediate Hydration
   useEffect(() => {
@@ -136,28 +215,67 @@ export default function InterviewSessionPage() {
   const isLastQuestion = currentIndex >= totalQuestions - 1;
   const isQuestionAnswered = Boolean(currentQuestion?.answer?.feedback || evalResult);
 
-  // 2. Avatar Speaks Current Question aloud when it loads
+  // 2. Question-First Flow: Avatar speaks the complete question before answering unlocks
   useEffect(() => {
-    if (currentQuestion && !isQuestionAnswered && !isMuted) {
-      setAvatarState('speaking');
-      setAvatarSubtitle(currentQuestion.questionText);
+    if (!currentQuestion) return;
 
-      voiceService.speak(currentQuestion.questionText, {
-        onStart: () => setAvatarState('speaking'),
-        onEnd: () => {
-          setAvatarState('idle');
-          setAvatarSubtitle('');
-        },
-      });
+    // If question has already been answered, do not re-read
+    if (isQuestionAnswered) {
+      setIsQuestionReading(false);
+      setAvatarState('idle');
+      return;
     }
+
+    // Cancel any previous speech when question changes
+    voiceService.stopSpeaking();
+    voiceService.stopListening();
+    setIsRecording(false);
+
+    // If muted, enable answering immediately
+    if (isMuted) {
+      setIsQuestionReading(false);
+      setAvatarState('listening');
+      setAvatarSubtitle('Listening to candidate...');
+      return;
+    }
+
+    // Lock answer input and timer while interviewer is speaking
+    setIsQuestionReading(true);
+    setAvatarState('speaking');
+    setAvatarSubtitle(currentQuestion.questionText);
+    spokenQuestionIdRef.current = currentQuestion.id;
+
+    voiceService.speak(currentQuestion.questionText, {
+      onStart: () => {
+        setIsQuestionReading(true);
+        setAvatarState('speaking');
+      },
+      onEnd: () => {
+        // Unlock candidate response ONLY after entire question has been spoken
+        setIsQuestionReading(false);
+        setAvatarState('listening');
+        setAvatarSubtitle('Listening to candidate response...');
+      },
+      onError: () => {
+        setIsQuestionReading(false);
+        setAvatarState('listening');
+        setAvatarSubtitle('');
+      },
+    });
+
+    return () => {
+      voiceService.stopSpeaking();
+    };
   }, [currentQuestion?.id, isQuestionAnswered, isMuted]);
 
   // 3. Microphone STT Toggle
   const toggleRecording = () => {
+    if (isQuestionReading || isQuestionAnswered || submitting) return;
+
     if (isRecording) {
       voiceService.stopListening();
       setIsRecording(false);
-      setAvatarState('idle');
+      setAvatarState('listening');
     } else {
       voiceService.stopSpeaking();
       setAvatarState('listening');
@@ -173,11 +291,11 @@ export default function InterviewSessionPage() {
         },
         onError: () => {
           setIsRecording(false);
-          setAvatarState('idle');
+          setAvatarState('listening');
         },
         onEnd: () => {
           setIsRecording(false);
-          setAvatarState('idle');
+          setAvatarState('listening');
         },
       });
     }
@@ -204,7 +322,7 @@ export default function InterviewSessionPage() {
       });
 
       const data = res.data?.data || res.data;
-      const feedback = data.feedback || data.evalResult;
+      const evaluation = data.evaluation || (typeof data.feedback === 'object' ? data.feedback : null) || {};
 
       // In adaptive mode, append the next question dynamically if provided
       let currentQuestionsList = [...questions];
@@ -217,28 +335,37 @@ export default function InterviewSessionPage() {
         ...currentQuestion,
         answer: {
           answerText: answerText.trim(),
-          feedback,
+          feedback: evaluation,
+          evaluated: evaluation.evaluated ?? false,
+          score: evaluation.overallScore ?? null,
         },
       };
       setQuestions(currentQuestionsList);
-      setEvalResult(feedback);
+      setEvalResult(evaluation);
 
       // Realtime Firestore synchronization for response
       try {
-        firestoreService.saveResponse({
+        const authUid = useAuthStore.getState().user?.id || useAuthStore.getState().user?.uid;
+        await firestoreService.saveResponse({
+          userId: authUid,
           interviewId: sessionId,
           questionId: currentQuestion.id,
           questionText: currentQuestion.questionText,
-          userAnswer: answerText.trim(),
-          feedback: feedback?.speechFeedback || feedback?.overallAssessment || feedback?.communication,
-          score: feedback?.score || data?.score || 8.0,
+          answer: answerText.trim(),
+          evaluated: evaluation.evaluated ?? false,
+          score: evaluation.overallScore ?? null,
+          feedback: evaluation.speechFeedback || evaluation.technicalAccuracy || 'Answer recorded.',
         });
-      } catch {
-        /* ignore */
+      } catch (fsErr) {
+        console.warn('[InterviewSessionPage] Firestore response save notice:', fsErr);
       }
 
       // Speak feedback
-      const speechText = feedback?.communication || feedback?.speechFeedback || 'Answer evaluated.';
+      const speechText =
+        evaluation.speechFeedback ||
+        (evaluation.evaluated
+          ? 'Answer evaluated.'
+          : 'Your answer was recorded. Let us move to the next question.');
       setAvatarState('speaking');
       setAvatarSubtitle(speechText);
 
@@ -270,15 +397,33 @@ export default function InterviewSessionPage() {
     setAvatarSubtitle('');
 
     try {
-      await interviewService.complete(sessionId);
+      const finishRes = await interviewService.complete(sessionId);
+      const finishData = finishRes.data?.data || finishRes.data || {};
+      const finalReport = finishData.report || {};
+
+      const authUid = useAuthStore.getState().user?.id || useAuthStore.getState().user?.uid;
+
       try {
         await firestoreService.updateInterview(sessionId, {
           interviewStatus: 'completed',
           status: 'completed',
           completedAt: new Date().toISOString(),
+          overallScore: finalReport.overallScore ?? null,
+          report: finalReport,
+          totalQuestions: questions.length,
+          answeredCount: questions.filter((q) => q.answer).length,
         });
-      } catch {
-        /* ignore */
+
+        await firestoreService.saveResult({
+          interviewId: sessionId,
+          userId: authUid,
+          overallScore: finalReport.overallScore ?? null,
+          feedback: finalReport.summary || 'Interview completed.',
+          reportData: finalReport,
+          completionStatus: 'completed',
+        });
+      } catch (fsErr) {
+        console.warn('[InterviewSessionPage] Firestore completion sync notice:', fsErr);
       }
     } catch (err) {
       console.warn('[InterviewSessionPage] Complete call warning:', err);
@@ -349,6 +494,30 @@ export default function InterviewSessionPage() {
 
   return (
     <div style={pageContainerStyle}>
+      {/* Fullscreen Pause Overlay Modal (Phase 3 Requirement) */}
+      {!isFullscreenActive && (
+        <div style={fullscreenOverlayStyle}>
+          <div style={fullscreenModalCardStyle}>
+            <AlertTriangle size={42} color="#FF5A1F" />
+            <h2 style={{ fontSize: '22px', fontWeight: '700', margin: '16px 0 8px', letterSpacing: '-0.02em' }}>
+              Interview Simulation Paused
+            </h2>
+            <p style={{ color: '#6B675F', fontSize: '14px', lineHeight: '1.5', margin: '0 0 24px' }}>
+              MockMate AI operates in fullscreen mode to ensure an authentic, distraction-free environment.
+              Your question narration and answer timer have been safely paused.
+            </p>
+            <button
+              type="button"
+              onClick={handleReenterFullscreen}
+              style={reenterFsBtnStyle}
+            >
+              <Maximize2 size={16} />
+              <span>Resume Fullscreen Interview</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Navbar */}
       <header style={topBarStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -403,7 +572,13 @@ export default function InterviewSessionPage() {
             subtitle={avatarSubtitle}
             avatarType={avatarType}
             onToggleAvatarType={() => {
-              setAvatarType((prev) => (prev === 'robot' ? 'female_video' : prev === 'female_video' ? 'male_video' : 'robot'));
+              setAvatarType((prev) => {
+                const next = prev === 'female_video' ? 'male_video' : prev === 'male_video' ? 'robot' : 'female_video';
+                try {
+                  localStorage.setItem('interviewpilot_avatar_type', next);
+                } catch {}
+                return next;
+              });
             }}
             isMuted={isMuted}
             onToggleMute={() => {
@@ -416,10 +591,10 @@ export default function InterviewSessionPage() {
           {/* Per-Question Circular Timer */}
           <InterviewTimer
             initialSeconds={currentQuestion?.timeLimit || 90}
-            isPaused={isQuestionAnswered || submitting}
+            isPaused={isQuestionReading || !isFullscreenActive || isQuestionAnswered || submitting}
             keyReset={currentQuestion?.id || 0}
             onExpire={() => {
-              if (!isQuestionAnswered && !submitting) {
+              if (!isQuestionReading && !isQuestionAnswered && !submitting) {
                 handleSubmitAnswer();
               }
             }}
@@ -471,7 +646,7 @@ export default function InterviewSessionPage() {
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  disabled={isQuestionAnswered || submitting}
+                  disabled={isQuestionReading || isQuestionAnswered || submitting}
                   style={{
                     ...recordBtnStyle,
                     ...(isRecording ? recordBtnActiveStyle : {}),
@@ -484,84 +659,161 @@ export default function InterviewSessionPage() {
 
               <textarea
                 rows={6}
-                placeholder={isRecording ? 'Listening... speak clearly into your microphone.' : 'Type your answer here or click "Voice Dictate" to speak aloud...'}
+                placeholder={
+                  isQuestionReading
+                    ? 'AI Interviewer is speaking the question. Please listen carefully...'
+                    : isRecording
+                    ? 'Listening... speak clearly into your microphone.'
+                    : 'Type your answer here or click "Voice Dictate" to speak aloud...'
+                }
                 value={answerText}
                 onChange={(e) => setAnswerText(e.target.value)}
-                disabled={isQuestionAnswered || submitting}
+                disabled={isQuestionReading || isQuestionAnswered || submitting}
                 style={textareaStyle}
               />
 
               {/* Submit or Next Button */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', gap: '12px' }}>
-                {!isQuestionAnswered ? (
-                  <button
-                    type="button"
-                    onClick={handleSubmitAnswer}
-                    disabled={submitting || !answerText.trim()}
-                    style={submitBtnStyle}
-                  >
-                    {submitting ? 'AI Scoring...' : 'Submit Answer →'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleNext}
-                    style={nextBtnStyle}
-                  >
-                    {isLastQuestion ? 'View Final Report ↗' : 'Next Question →'}
-                  </button>
-                )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isQuestionReading && (
+                    <span style={{ fontSize: '13px', color: '#D97706', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '500' }}>
+                      <Volume2 size={15} /> Listening to Question Narration...
+                    </span>
+                  )}
+                </div>
+                <div>
+                  {!isQuestionAnswered ? (
+                    <button
+                      type="button"
+                      onClick={handleSubmitAnswer}
+                      disabled={isQuestionReading || submitting || !answerText.trim()}
+                      style={submitBtnStyle}
+                    >
+                      {submitting ? 'AI Scoring...' : 'Submit Answer →'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      style={nextBtnStyle}
+                    >
+                      {isLastQuestion ? 'View Final Report ↗' : 'Next Question →'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Inline AI Feedback Card */}
             {evalResult && (
-              <div style={feedbackContainerStyle}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              evalResult.evaluated === false || evalResult.status === 'unevaluated' ? (
+                <div style={unevaluatedContainerStyle}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Sparkles size={18} color="#FF5A1F" />
-                    <span style={{ fontWeight: '700', fontSize: '15px' }}>Gemini AI Evaluation</span>
+                    <AlertCircle size={18} color="#D97706" />
+                    <span style={{ fontWeight: '700', fontSize: '15px', color: '#92400E' }}>
+                      AI Evaluation Unavailable (Google Gemini Key Pending)
+                    </span>
                   </div>
-                  <div style={scoreCircleStyle}>
-                    <span style={{ fontSize: '18px', fontWeight: '700' }}>{evalResult.score ?? evalResult.overallScore ?? 7.5}</span>
-                    <span style={{ fontSize: '10px', color: '#6B675F' }}>/ 10</span>
-                  </div>
+                  <p style={{ margin: '8px 0 0', fontSize: '13px', color: '#78350F', lineHeight: '1.5' }}>
+                    Your response has been saved and recorded to your interview session. Numerical AI scoring is unavailable because <code>GEMINI_API_KEY</code> has not been configured in <code>server/.env</code>.
+                  </p>
+                  <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#92400E' }}>
+                    You can proceed to the next question or view your completed session transcript at any time.
+                  </p>
                 </div>
-
-                {/* 3 Elevo Metric Bars */}
-                <div style={metricsGridStyle}>
-                  <div style={metricBoxStyle}>
-                    <span style={metricLabelStyle}>Confidence</span>
-                    <span style={metricValStyle}>{evalResult.confidenceScore ?? 8.0}/10</span>
-                  </div>
-                  <div style={metricBoxStyle}>
-                    <span style={metricLabelStyle}>Communication</span>
-                    <span style={metricValStyle}>{evalResult.communicationScore ?? 7.5}/10</span>
-                  </div>
-                  <div style={metricBoxStyle}>
-                    <span style={metricLabelStyle}>Correctness</span>
-                    <span style={metricValStyle}>{evalResult.correctnessScore ?? 7.0}/10</span>
-                  </div>
-                </div>
-
-                {/* Detailed Qualitative Feedback */}
-                <div style={{ marginTop: '14px', fontSize: '13px', lineHeight: '1.5', color: '#0A0A0A' }}>
-                  <p style={{ margin: '0 0 6px' }}><b>Technical Accuracy:</b> {evalResult.correctness || evalResult.technicalAccuracy}</p>
-                  {evalResult.communication && (
-                    <p style={{ margin: '0 0 6px' }}><b>Interviewer Note:</b> {evalResult.communication}</p>
-                  )}
-                  {evalResult.improvements && evalResult.improvements.length > 0 && (
-                    <div style={{ marginTop: '8px' }}>
-                      <b>Suggested Refinements:</b>
-                      <ul style={{ margin: '4px 0 0', paddingLeft: '18px' }}>
-                        {evalResult.improvements.map((imp, idx) => (
-                          <li key={idx}>{imp}</li>
-                        ))}
-                      </ul>
+              ) : (
+                <div style={feedbackContainerStyle}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Sparkles size={18} color="#FF5A1F" />
+                      <span style={{ fontWeight: '700', fontSize: '15px' }}>Gemini AI Evaluation</span>
                     </div>
-                  )}
+                    {evalResult.overallScore != null ? (
+                      <div style={scoreCircleStyle}>
+                        <span style={{ fontSize: '18px', fontWeight: '700' }}>{evalResult.overallScore}</span>
+                        <span style={{ fontSize: '10px', color: '#6B675F' }}>/ 10</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#6B675F' }}>Score Pending</span>
+                    )}
+                  </div>
+
+                  {/* 4 Metric Boxes */}
+                  <div style={metricsGridStyle}>
+                    <div style={metricBoxStyle}>
+                      <span style={metricLabelStyle}>Correctness</span>
+                      <span style={metricValStyle}>
+                        {evalResult.correctnessScore != null ? `${evalResult.correctnessScore}/10` : '—'}
+                      </span>
+                    </div>
+                    <div style={metricBoxStyle}>
+                      <span style={metricLabelStyle}>Understanding</span>
+                      <span style={metricValStyle}>
+                        {evalResult.conceptualUnderstandingScore != null ? `${evalResult.conceptualUnderstandingScore}/10` : '—'}
+                      </span>
+                    </div>
+                    <div style={metricBoxStyle}>
+                      <span style={metricLabelStyle}>Communication</span>
+                      <span style={metricValStyle}>
+                        {evalResult.communicationScore != null ? `${evalResult.communicationScore}/10` : '—'}
+                      </span>
+                    </div>
+                    <div style={metricBoxStyle}>
+                      <span style={metricLabelStyle}>Confidence</span>
+                      <span style={metricValStyle}>
+                        {evalResult.confidenceScore != null ? `${evalResult.confidenceScore}/10` : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Detailed Qualitative Feedback */}
+                  <div style={{ marginTop: '14px', fontSize: '13px', lineHeight: '1.5', color: '#0A0A0A' }}>
+                    {evalResult.technicalAccuracy && (
+                      <p style={{ margin: '0 0 6px' }}><b>Technical Accuracy:</b> {evalResult.technicalAccuracy}</p>
+                    )}
+                    {evalResult.strengths && evalResult.strengths.length > 0 && (
+                      <div style={{ marginTop: '6px' }}>
+                        <b style={{ color: '#15803d' }}>Strengths:</b>
+                        <ul style={{ margin: '2px 0 6px', paddingLeft: '18px' }}>
+                          {evalResult.strengths.map((s, idx) => <li key={idx}>{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {evalResult.weaknesses && evalResult.weaknesses.length > 0 && (
+                      <div style={{ marginTop: '6px' }}>
+                        <b style={{ color: '#b91c1c' }}>Weaknesses:</b>
+                        <ul style={{ margin: '2px 0 6px', paddingLeft: '18px' }}>
+                          {evalResult.weaknesses.map((w, idx) => <li key={idx}>{w}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {evalResult.missingConcepts && evalResult.missingConcepts.length > 0 && (
+                      <div style={{ marginTop: '6px' }}>
+                        <b style={{ color: '#b45309' }}>Missing Concepts:</b>
+                        <ul style={{ margin: '2px 0 6px', paddingLeft: '18px' }}>
+                          {evalResult.missingConcepts.map((m, idx) => <li key={idx}>{m}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {evalResult.improvements && evalResult.improvements.length > 0 && (
+                      <div style={{ marginTop: '6px' }}>
+                        <b>Improvement Suggestions:</b>
+                        <ul style={{ margin: '2px 0 6px', paddingLeft: '18px' }}>
+                          {evalResult.improvements.map((imp, idx) => <li key={idx}>{imp}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {evalResult.improvedSampleAnswer && (
+                      <div style={{ marginTop: '8px', padding: '10px 12px', background: '#F8F6F0', borderRadius: '8px', border: '1px solid #E3DED2' }}>
+                        <b style={{ color: '#0A0A0A' }}>10/10 Sample Answer:</b>
+                        <p style={{ margin: '4px 0 0', fontStyle: 'italic', color: '#262626' }}>
+                          {evalResult.improvedSampleAnswer}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )
             )}
           </div>
         </main>
@@ -805,6 +1057,14 @@ const feedbackContainerStyle = {
   border: '1px solid #E3DED2',
 };
 
+const unevaluatedContainerStyle = {
+  marginTop: '24px',
+  padding: '18px 20px',
+  borderRadius: '14px',
+  background: '#FFFBEB',
+  border: '1px solid #FDE68A',
+};
+
 const scoreCircleStyle = {
   display: 'inline-flex',
   alignItems: 'baseline',
@@ -817,7 +1077,7 @@ const scoreCircleStyle = {
 
 const metricsGridStyle = {
   display: 'grid',
-  gridTemplateColumns: '1fr 1fr 1fr',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
   gap: '10px',
 };
 
@@ -877,4 +1137,47 @@ const errorStyle = {
   fontSize: '13px',
   fontWeight: '600',
   marginBottom: '16px',
+};
+
+const fullscreenOverlayStyle = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: 'rgba(10, 10, 10, 0.85)',
+  backdropFilter: 'blur(8px)',
+  zIndex: 99999,
+  display: 'grid',
+  placeItems: 'center',
+  padding: '24px',
+};
+
+const fullscreenModalCardStyle = {
+  background: '#FFFFFF',
+  borderRadius: '24px',
+  padding: '36px clamp(24px, 5vw, 44px)',
+  maxWidth: '460px',
+  width: '100%',
+  textAlign: 'center',
+  border: '2px solid #E3DED2',
+  boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+  boxSizing: 'border-box',
+};
+
+const reenterFsBtnStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '10px',
+  width: '100%',
+  height: '50px',
+  borderRadius: '999px',
+  background: '#0A0A0A',
+  color: '#F2EEE6',
+  border: 'none',
+  fontWeight: '700',
+  fontSize: '15px',
+  cursor: 'pointer',
+  transition: 'transform 0.15s ease',
 };

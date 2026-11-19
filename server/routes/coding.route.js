@@ -4,10 +4,17 @@ import isAuth from "../middlewares/isAuth.js";
 
 const codingRouter = express.Router();
 
-codingRouter.get("/problems", isAuth, getProblems);
-codingRouter.get("/problems/:id", isAuth, getProblemById);
-codingRouter.post("/run", isAuth, runCode);
-codingRouter.post("/submit", isAuth, submitCode);
+// Public problem browsing
+codingRouter.get("/problems", getProblems);
+codingRouter.get("/questions", getProblems);
+codingRouter.get("/problems/:id", getProblemById);
+codingRouter.get("/questions/:id", getProblemById);
+
+// Execution and submission (accepts both /run and /execute)
+codingRouter.post("/run", runCode);
+codingRouter.post("/execute", runCode);
+codingRouter.post("/submit", submitCode);
 
 export default codingRouter;
+
 

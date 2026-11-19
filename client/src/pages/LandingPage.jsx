@@ -3,7 +3,7 @@ import './LandingPage.css';
 import Logo from '../components/Logo';
 
 /**
- * InterviewPilot AI landing page.
+ * MockMate AI landing page.
  * Props: loginHref / registerHref -> where Login and Get Started / Start Your Interview should go.
  * Fonts (Anton, Instrument Serif, Space Grotesk) are loaded from LandingPage.css.
  */
@@ -155,9 +155,9 @@ export default function LandingPage({ loginHref = '/login', registerHref = '/reg
 
 
 <section id="features"><div className="in what">
-  <h2>What is<br />InterviewPilot?</h2>
+  <h2>What is<br />MockMate?</h2>
   <div>
-    <p className="big">InterviewPilot AI is an AI-powered mock interview platform that helps candidates practice realistic, personalized interviews and understand exactly where they need to improve.</p>
+    <p className="big">MockMate AI is an AI-powered mock interview and coding practice platform that helps candidates practice realistic, personalized interviews and understand exactly where they need to improve.</p>
     <p><b>It uses</b></p>
     <div className="tags" style={{marginTop: '12px'}}><span className="tag">Resume</span><span className="tag y">Target role</span><span className="tag">Interview type</span><span className="tag k">Difficulty level</span></div>
     <p style={{marginTop: '16px'}}>to create a personalized interview experience.</p>
@@ -176,9 +176,9 @@ export default function LandingPage({ loginHref = '/login', registerHref = '/reg
 <section id="how"><div className="in">
   <h2>How it works</h2>
   <div className="five l">
-    <div><b>01</b><h3>Upload Your Resume</h3><p>Give InterviewPilot your resume and let it understand your experience.</p></div>
+    <div><b>01</b><h3>Upload Your Resume</h3><p>Give MockMate your resume and let it understand your experience.</p></div>
     <div><b>02</b><h3>Set Up Your Interview</h3><p>Choose your target role, interview type and difficulty.</p></div>
-    <div><b>03</b><h3>Start the Interview</h3><p>Answer personalized questions and adaptive follow-ups.</p></div>
+    <div><b>03</b><h3>Start the Interview</h3><p>Answer personalized questions and adaptive follow-ups in fullscreen.</p></div>
     <div><b>04</b><h3>Get Evaluated</h3><p>Receive AI-powered feedback on every answer.</p></div>
     <div><b>05</b><h3>Improve</h3><p>Discover your weaknesses and get a personalized roadmap.</p></div>
   </div>
@@ -188,7 +188,7 @@ export default function LandingPage({ loginHref = '/login', registerHref = '/reg
 <section className="red"><div className="in two">
   <div>
     <h2>Personalized interview questions</h2>
-    <p style={{marginTop: '18px', fontSize: '16px'}}>Questions aren't generic. InterviewPilot generates questions based on:</p>
+    <p style={{marginTop: '18px', fontSize: '16px'}}>Questions aren't generic. MockMate generates questions based on:</p>
     <div className="tags"><span className="tag">Your resume</span><span className="tag">Target role</span><span className="tag">Interview type</span><span className="tag">Difficulty</span><span className="tag">Your previous answers</span></div>
   </div>
   <div className="adapt"><h3>Adaptive follow-up questions</h3><p>Answer something shallow and it digs deeper. Answer well and it moves on to a tougher angle, just like a real interviewer.</p></div>
@@ -213,7 +213,7 @@ export default function LandingPage({ loginHref = '/login', registerHref = '/reg
 <section className="dark"><div className="in">
   <h2>Discover your skill gaps</h2>
   <p style={{margin: '16px 0 4px', fontSize: '16px'}}>Know what is holding you back.</p>
-  <p>InterviewPilot identifies:</p>
+  <p>MockMate identifies:</p>
   <div style={{marginTop: '22px'}}><span className="gap r" style={{transform: 'rotate(-2deg)'}}>Weak concepts</span><span className="gap" style={{background: 'var(--bg)', transform: 'rotate(1.5deg)'}}>Missing skills</span><span className="gap y" style={{transform: 'rotate(-1deg)'}}>Topics that need improvement</span><span className="gap o" style={{transform: 'rotate(1deg)'}}>Areas where your interview performance is lacking</span></div>
 </div></section>
 
@@ -243,7 +243,7 @@ export default function LandingPage({ loginHref = '/login', registerHref = '/reg
 
 
 <section><div className="in why">
-  <div><h2>Why InterviewPilot?</h2>
+  <div><h2>Why MockMate?</h2>
     <div className="no">Not generic questions.</div><div className="no">Not one-size-fits-all practice.</div><div className="no">Not just a score.</div></div>
   <div><p style={{fontWeight: '700'}}>Instead:</p>
     <div className="yes">Resume-aware.<br />Adaptive.<br />Personalized.<br />Feedback-driven.<br /><span className="p">Improvement-focused.</span></div></div>
@@ -271,24 +271,24 @@ export default function LandingPage({ loginHref = '/login', registerHref = '/reg
 <section id="faq"><div className="in">
   <h2>FAQ</h2>
   <div className="faq">
-    <details><summary>What is InterviewPilot AI?</summary><p>An AI-powered mock interview platform that helps you practice realistic, personalized interviews and see exactly where to improve.</p></details>
+    <details><summary>What is MockMate AI?</summary><p>An AI-powered mock interview and coding practice platform that helps you practice realistic, personalized interviews and see exactly where to improve.</p></details>
     <details><summary>How does the AI generate interview questions?</summary><p>It uses your resume, target role, interview type, difficulty and your previous answers, so every question fits you.</p></details>
     <details><summary>Can I use my own resume?</summary><p>Yes. Upload your own resume and the AI builds the interview around your experience and skills.</p></details>
-    <details><summary>Which interview types are supported?</summary><p>You choose the interview type during setup, such as technical or HR, along with your target role.</p></details>
+    <details><summary>Which interview types are supported?</summary><p>You choose the interview type during setup, such as technical, HR, or recruitment simulation, along with your target role.</p></details>
     <details><summary>Can I choose difficulty?</summary><p>Yes. Pick the difficulty level when you set up the interview and change it for the next one.</p></details>
     <details><summary>How does AI evaluate my answers?</summary><p>Each answer is scored on technical correctness, relevance, completeness and communication, with notes on what went well and what to fix.</p></details>
-    <details><summary>Does InterviewPilot provide a learning roadmap?</summary><p>Yes. Based on your performance it lists topics to work on, with priority, progress and learning resources.</p></details>
-    <details><summary>Do I need an account to use InterviewPilot?</summary><p>Yes. An account saves your interviews, scores and roadmap so you can track improvement. New here? Click Get Started. Already registered? Login.</p></details>
+    <details><summary>Does MockMate provide a learning roadmap?</summary><p>Yes. Based on your performance it lists topics to work on, with priority, progress and learning resources.</p></details>
+    <details><summary>Do I need an account to use MockMate?</summary><p>Yes. An account saves your interviews, scores and roadmap so you can track improvement. New here? Click Get Started. Already registered? Login.</p></details>
   </div>
 </div></section>
 </main>
 
 <footer>
   <div className="in">
-    <div><h3>InterviewPilot AI</h3><p>An AI-powered mock interview platform that helps candidates practice realistic, personalized interviews.</p></div>
+    <div><h3>MockMate AI</h3><p>An AI-powered mock interview platform that helps candidates practice realistic, personalized interviews.</p></div>
     <div className="fl"><a href="#features">Features</a><a href="#how">How It Works</a><a href="#faq">FAQ</a><a href={loginHref}>Login</a><a href={registerHref}>Get Started</a></div>
   </div>
-  <small>© InterviewPilot AI. All rights reserved.</small>
+  <small>© MockMate AI. All rights reserved.</small>
 </footer>
 
     </div>

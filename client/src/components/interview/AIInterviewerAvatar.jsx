@@ -1,38 +1,46 @@
 // client/src/components/interview/AIInterviewerAvatar.jsx
-// Interactive AI Interviewer Avatar supporting Idle, Listening, Speaking, Thinking, Evaluating, and Error states.
-// Offers both the signature InterviewPilot SVG animated robot and realistic AI video interviewer.
+// Interactive AI Interviewer Avatar featuring realistic AI video avatars (female-ai.mp4, male-ai.mp4)
+// and the signature MockMate animated SVG robot.
+// Supports Idle, Listening, Speaking, Thinking, Evaluating, and Error states.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, VolumeX, Mic, MicOff, RefreshCw, Sparkles, UserCheck } from 'lucide-react';
+import { Volume2, VolumeX, RefreshCw, Sparkles, User, Video, Bot } from 'lucide-react';
 import femaleVideo from '../../assets/videos/female-ai.mp4';
 import maleVideo from '../../assets/videos/male-ai.mp4';
 
 export default function AIInterviewerAvatar({
   state = 'idle', // 'idle' | 'speaking' | 'listening' | 'thinking' | 'evaluating' | 'error'
   subtitle = '',
-  avatarType = 'robot', // 'robot' | 'female_video' | 'male_video'
+  avatarType = 'female_video', // Default: realistic video interviewer ('female_video' | 'male_video' | 'robot')
   onToggleAvatarType,
   isMuted = false,
   onToggleMute,
 }) {
   const videoRef = useRef(null);
   const [mouthOpen, setMouthOpen] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
 
-  // Sync video playback with speaking state
+  // Synchronize video playback with avatar state
   useEffect(() => {
-    if (avatarType !== 'robot' && videoRef.current) {
+    if (avatarType !== 'robot' && videoRef.current && !videoError) {
+      const v = videoRef.current;
       if (state === 'speaking') {
-        videoRef.current.play().catch(() => {});
+        v.play().catch(() => {});
+      } else if (state === 'listening' || state === 'evaluating' || state === 'thinking') {
+        // Play at half speed or keep loop playing smoothly
+        v.play().catch(() => {});
       } else {
-        videoRef.current.pause();
+        // Idle
+        v.play().catch(() => {});
       }
     }
-  }, [state, avatarType]);
+  }, [state, avatarType, videoError]);
 
-  // Mouth animation during robot speaking state
+  // Mouth animation during SVG robot speaking state
   useEffect(() => {
     let interval;
-    if (state === 'speaking') {
+    if (avatarType === 'robot' && state === 'speaking') {
       interval = setInterval(() => {
         setMouthOpen((prev) => !prev);
       }, 180);
@@ -41,100 +49,128 @@ export default function AIInterviewerAvatar({
       clearInterval(interval);
       setMouthOpen(false);
     };
-  }, [state]);
+  }, [state, avatarType]);
+
+  const normalizedState = (state || 'idle').toLowerCase();
 
   const stateLabels = {
     idle: 'Ready & Waiting',
+    loading: 'Loading Interview Session...',
     speaking: 'Interviewer is Speaking...',
     listening: 'Listening to Candidate...',
     thinking: 'Synthesizing Next Question...',
-    evaluating: 'Scoring Answer with Gemini...',
+    processing: 'Evaluating Answer with Gemini...',
+    evaluating: 'Evaluating Answer with Gemini...',
     error: 'Audio Connection Paused',
+    completed: 'Interview Session Completed',
   };
 
   const stateBadges = {
     idle: { bg: '#E3DED2', color: '#0A0A0A' },
+    loading: { bg: '#E3DED2', color: '#0A0A0A' },
     speaking: { bg: '#F4CF63', color: '#0A0A0A' },
     listening: { bg: '#4ADE80', color: '#0A0A0A' },
     thinking: { bg: '#FF5A1F', color: '#FFFFFF' },
+    processing: { bg: '#60A5FA', color: '#FFFFFF' },
     evaluating: { bg: '#60A5FA', color: '#FFFFFF' },
     error: { bg: '#EC4F5F', color: '#FFFFFF' },
+    completed: { bg: '#1E7E34', color: '#FFFFFF' },
   };
 
-  const badgeStyle = stateBadges[state] || stateBadges.idle;
+  const badgeStyle = stateBadges[normalizedState] || stateBadges.idle;
+  const currentVideoSrc = avatarType === 'male_video' ? maleVideo : femaleVideo;
+  const useVideo = (avatarType === 'female_video' || avatarType === 'male_video') && !videoError;
 
   return (
     <div style={containerStyle}>
       {/* Top Header Controls */}
       <div style={headerStyle}>
         <div style={{ ...statusBadgeStyle, background: badgeStyle.bg, color: badgeStyle.color }}>
-          <span style={dotStyle(state === 'speaking' || state === 'listening')} />
-          {stateLabels[state]}
+          <span style={dotStyle(normalizedState === 'speaking' || normalizedState === 'listening' || normalizedState === 'evaluating' || normalizedState === 'processing')} />
+          {stateLabels[normalizedState] || stateLabels.idle}
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {onToggleMute && (
             <button
+              type="button"
               onClick={onToggleMute}
               style={iconBtnStyle}
               title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
             >
-              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
             </button>
           )}
 
           {onToggleAvatarType && (
             <button
+              type="button"
               onClick={onToggleAvatarType}
-              style={iconBtnStyle}
-              title="Switch Avatar Model (Robot / Video)"
+              style={{ ...iconBtnStyle, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}
+              title="Switch between Female AI, Male AI, or Robot avatar"
             >
-              <RefreshCw size={15} />
+              {avatarType === 'female_video' ? (
+                <><span>Female AI</span> <RefreshCw size={12} /></>
+              ) : avatarType === 'male_video' ? (
+                <><span>Male AI</span> <RefreshCw size={12} /></>
+              ) : (
+                <><span>Robot</span> <RefreshCw size={12} /></>
+              )}
             </button>
           )}
         </div>
       </div>
 
-      {/* Main Visual Display */}
+      {/* Main Avatar Stage */}
       <div style={stageStyle}>
-        {avatarType === 'female_video' ? (
+        {useVideo ? (
           <div style={videoWrapperStyle}>
+            {/* Listening / Speaking active halo ring */}
+            {state === 'speaking' && <div style={speakingHaloStyle} />}
+            {state === 'listening' && <div style={listeningHaloStyle} />}
+
             <video
               ref={videoRef}
-              src={femaleVideo}
+              key={currentVideoSrc}
+              src={currentVideoSrc}
+              autoPlay
               loop
               muted
               playsInline
+              preload="auto"
+              onLoadedData={() => {
+                setIsVideoLoaded(true);
+                setVideoError(false);
+                videoRef.current?.play().catch(() => {});
+              }}
+              onError={(e) => {
+                console.warn('[AIInterviewerAvatar] Video failed to load, falling back to SVG robot avatar:', e);
+                setVideoError(true);
+              }}
               style={videoElementStyle}
             />
-          </div>
-        ) : avatarType === 'male_video' ? (
-          <div style={videoWrapperStyle}>
-            <video
-              ref={videoRef}
-              src={maleVideo}
-              loop
-              muted
-              playsInline
-              style={videoElementStyle}
-            />
+
+            {/* Video overlay badge */}
+            <div style={videoOverlayBadgeStyle}>
+              <Video size={12} />
+              <span>{avatarType === 'male_video' ? 'AI Interviewer (Alex)' : 'AI Interviewer (Sarah)'}</span>
+            </div>
           </div>
         ) : (
-          /* Signature InterviewPilot Animated SVG Robot */
+          /* Signature MockMate Animated SVG Robot (Primary or Fallback) */
           <div style={robotWrapperStyle(state)}>
-            {/* Listening Soundwaves Glow */}
             {state === 'listening' && <div style={soundwavesRingStyle} />}
 
             <svg viewBox="0 0 400 450" style={svgRobotStyle}>
               <ellipse cx="200" cy="428" rx="105" ry="12" fill="#0A0A0A" opacity="0.16" />
-              
-              {/* Antenna with reactive pulsing indicator */}
+
+              {/* Antenna */}
               <line x1="200" y1="62" x2="200" y2="92" stroke="#0A0A0A" strokeWidth="6" />
               <circle
                 cx="200"
                 cy="54"
-                r={state === 'thinking' ? 15 : 12}
-                fill={state === 'speaking' ? '#F4CF63' : state === 'listening' ? '#4ADE80' : '#FF5A1F'}
+                r={state === 'thinking' || state === 'evaluating' ? 15 : 12}
+                fill={state === 'speaking' ? '#F4CF63' : state === 'listening' ? '#4ADE80' : state === 'evaluating' ? '#60A5FA' : '#FF5A1F'}
                 stroke="#0A0A0A"
                 strokeWidth="5"
               />
@@ -148,200 +184,213 @@ export default function AIInterviewerAvatar({
               <circle cx="200" cy="318" r="14" fill="none" stroke="#F2EEE6" strokeWidth="4" />
               <rect x="150" y="360" width="100" height="10" rx="5" fill="#EC4F5F" />
 
-              {/* Left Arm */}
-              <path d="M138 296 Q96 320 104 368" fill="none" stroke="#0A0A0A" strokeWidth="22" strokeLinecap="round" />
-              <circle cx="104" cy="372" r="22" fill="#F2EEE6" stroke="#0A0A0A" strokeWidth="5" />
-              <circle cx="104" cy="372" r="8" fill="#FF5A1F" />
-
-              {/* Right Arm (waving or steady) */}
-              <path d="M262 292 Q316 270 322 214" fill="none" stroke="#0A0A0A" strokeWidth="22" strokeLinecap="round" />
-              <circle cx="322" cy="204" r="24" fill="#F2EEE6" stroke="#0A0A0A" strokeWidth="5" />
-              <circle cx="322" cy="204" r="9" fill="#FF5A1F" />
-
               {/* Head */}
-              <rect x="82" y="92" width="236" height="186" rx="80" fill="#F2EEE6" stroke="#0A0A0A" strokeWidth="6" />
-              
-              {/* Face Screen */}
-              <rect x="108" y="120" width="184" height="130" rx="56" fill="#0A0A0A" />
+              <rect x="88" y="92" width="224" height="176" rx="42" fill="#F4CF63" stroke="#0A0A0A" strokeWidth="6" />
+
+              {/* Visor / Face Screen */}
+              <rect x="114" y="122" width="172" height="116" rx="26" fill="#0A0A0A" />
 
               {/* Eyes */}
-              <g fill="none" stroke="#F2EEE6" strokeWidth="9" strokeLinecap="round">
-                {state === 'thinking' ? (
-                  <>
-                    <circle cx="166" cy="180" r="10" fill="#F4CF63" stroke="none" />
-                    <circle cx="234" cy="180" r="10" fill="#F4CF63" stroke="none" />
-                  </>
-                ) : (
-                  <>
-                    <path d="M150 186 Q166 166 182 186" />
-                    <path d="M218 186 Q234 166 250 186" />
-                  </>
-                )}
-              </g>
-
-              {/* Cheeks */}
-              <circle cx="146" cy="212" r="9" fill="#FF5A1F" />
-              <circle cx="254" cy="212" r="9" fill="#FF5A1F" />
-
-              {/* Animated Mouth */}
-              {mouthOpen ? (
-                <ellipse cx="200" cy="216" rx="14" ry="10" fill="#F2EEE6" />
+              {state === 'evaluating' || state === 'thinking' ? (
+                <>
+                  <circle cx="156" cy="165" r="14" fill="#60A5FA" />
+                  <circle cx="244" cy="165" r="14" fill="#60A5FA" />
+                </>
+              ) : state === 'listening' ? (
+                <>
+                  <rect x="142" y="162" width="28" height="8" rx="4" fill="#4ADE80" />
+                  <rect x="230" y="162" width="28" height="8" rx="4" fill="#4ADE80" />
+                </>
               ) : (
-                <path d="M184 214 Q200 230 216 214" fill="none" stroke="#F2EEE6" strokeWidth="6" strokeLinecap="round" />
+                <>
+                  <circle cx="156" cy="165" r="15" fill="#F2EEE6" />
+                  <circle cx="244" cy="165" r="15" fill="#F2EEE6" />
+                  <circle cx={mouthOpen ? 158 : 156} cy={mouthOpen ? 166 : 165} r="7" fill="#0A0A0A" />
+                  <circle cx={mouthOpen ? 246 : 244} cy={mouthOpen ? 246 : 165} r="7" fill="#0A0A0A" />
+                </>
+              )}
+
+              {/* Mouth */}
+              {mouthOpen ? (
+                <rect x="174" y="198" width="52" height="18" rx="9" fill="#FF5A1F" stroke="#F2EEE6" strokeWidth="3" />
+              ) : (
+                <line x1="176" y1="206" x2="224" y2="206" stroke="#F2EEE6" strokeWidth="5" strokeLinecap="round" />
               )}
             </svg>
           </div>
         )}
       </div>
 
-      {/* Subtitle & Feedback Caption Bar */}
-      <div style={subtitleBoxStyle}>
-        {state === 'speaking' && (
-          <div style={audioBarsStyle}>
-            <span style={{ ...barStyle, animationDelay: '0ms' }} />
-            <span style={{ ...barStyle, animationDelay: '150ms' }} />
-            <span style={{ ...barStyle, animationDelay: '300ms' }} />
-            <span style={{ ...barStyle, animationDelay: '450ms' }} />
-          </div>
-        )}
-        <p style={subtitleTextStyle}>
-          {subtitle || (state === 'listening' ? 'Listening to your response... speak clearly or type below.' : 'AI Interviewer ready.')}
-        </p>
-      </div>
+      {/* Realtime Spoken Subtitle Caption */}
+      {subtitle && (
+        <div style={subtitleBoxStyle}>
+          <p style={subtitleTextStyle}>"{subtitle}"</p>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Inline Styles for Self-Contained Reusability ─────────────────────────────
+// ── Styles adhering to MockMate AI Brand System ───────────────────────────
 const containerStyle = {
   background: '#FFFFFF',
-  borderRadius: '20px',
   border: '1px solid #E3DED2',
-  padding: '20px',
+  borderRadius: '20px',
+  padding: '16px',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   display: 'flex',
   flexDirection: 'column',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
-  boxSizing: 'border-box',
-  width: '100%',
+  gap: '12px',
 };
 
 const headerStyle = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  marginBottom: '16px',
 };
 
 const statusBadgeStyle = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: '8px',
-  padding: '6px 14px',
+  padding: '6px 12px',
   borderRadius: '999px',
-  fontSize: '13px',
-  fontWeight: '600',
-  letterSpacing: '-0.01em',
+  fontSize: '12px',
+  fontWeight: '700',
+  letterSpacing: '0.02em',
+  transition: 'all 0.2s ease',
 };
 
-const dotStyle = (pulse) => ({
+const dotStyle = (isPulsing) => ({
   width: '8px',
   height: '8px',
   borderRadius: '50%',
   background: 'currentColor',
   display: 'inline-block',
-  boxShadow: pulse ? '0 0 8px currentColor' : 'none',
+  animation: isPulsing ? 'pulse 1.2s infinite' : 'none',
 });
 
 const iconBtnStyle = {
-  width: '34px',
-  height: '34px',
-  borderRadius: '10px',
-  border: '1px solid #E3DED2',
   background: '#FBFAF7',
-  color: '#0A0A0A',
-  display: 'grid',
-  placeItems: 'center',
+  border: '1px solid #E3DED2',
+  borderRadius: '8px',
+  padding: '6px 10px',
   cursor: 'pointer',
+  color: '#0A0A0A',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'all 0.15s ease',
 };
 
 const stageStyle = {
+  width: '100%',
   minHeight: '260px',
+  maxHeight: '340px',
+  background: '#0A0A0A',
+  borderRadius: '16px',
+  overflow: 'hidden',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   position: 'relative',
 };
 
-const robotWrapperStyle = (state) => ({
-  width: '240px',
-  height: '270px',
-  position: 'relative',
-  transition: 'transform 0.3s ease',
-  transform: state === 'speaking' ? 'scale(1.02)' : 'scale(1)',
-});
-
-const svgRobotStyle = {
+const videoWrapperStyle = {
   width: '100%',
   height: '100%',
-  filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.06))',
-};
-
-const soundwavesRingStyle = {
-  position: 'absolute',
-  inset: '-10px',
-  borderRadius: '50%',
-  border: '2px dashed #4ADE80',
-  opacity: 0.7,
-  animation: 'pulse 1.8s infinite',
-};
-
-const videoWrapperStyle = {
-  width: '220px',
-  height: '240px',
-  borderRadius: '16px',
-  overflow: 'hidden',
-  border: '2px solid #0A0A0A',
-  background: '#0A0A0A',
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 };
 
 const videoElementStyle = {
   width: '100%',
   height: '100%',
+  maxHeight: '340px',
   objectFit: 'cover',
+  display: 'block',
+};
+
+const speakingHaloStyle = {
+  position: 'absolute',
+  inset: 0,
+  border: '3px solid #F4CF63',
+  borderRadius: '16px',
+  pointerEvents: 'none',
+  boxShadow: 'inset 0 0 20px rgba(244, 207, 99, 0.4)',
+  zIndex: 2,
+};
+
+const listeningHaloStyle = {
+  position: 'absolute',
+  inset: 0,
+  border: '3px solid #4ADE80',
+  borderRadius: '16px',
+  pointerEvents: 'none',
+  boxShadow: 'inset 0 0 20px rgba(74, 222, 128, 0.4)',
+  zIndex: 2,
+};
+
+const videoOverlayBadgeStyle = {
+  position: 'absolute',
+  bottom: '10px',
+  left: '12px',
+  background: 'rgba(10, 10, 10, 0.75)',
+  backdropFilter: 'blur(4px)',
+  color: '#FFFFFF',
+  padding: '4px 10px',
+  borderRadius: '999px',
+  fontSize: '11px',
+  fontWeight: '600',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  zIndex: 3,
+};
+
+const robotWrapperStyle = (state) => ({
+  width: '100%',
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  position: 'relative',
+  background: '#F2EEE6',
+  padding: '12px',
+});
+
+const soundwavesRingStyle = {
+  position: 'absolute',
+  width: '240px',
+  height: '240px',
+  borderRadius: '50%',
+  border: '2px solid rgba(74, 222, 128, 0.5)',
+  animation: 'pulse 1.5s infinite',
+  pointerEvents: 'none',
+};
+
+const svgRobotStyle = {
+  width: '100%',
+  maxWidth: '220px',
+  height: 'auto',
+  display: 'block',
 };
 
 const subtitleBoxStyle = {
-  marginTop: '16px',
-  padding: '12px 16px',
-  borderRadius: '12px',
   background: '#FBFAF7',
   border: '1px solid #E3DED2',
-  minHeight: '48px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px',
+  borderRadius: '12px',
+  padding: '10px 14px',
 };
 
 const subtitleTextStyle = {
-  fontSize: '13px',
-  lineHeight: '1.4',
-  color: '#0A0A0A',
   margin: 0,
+  fontSize: '13px',
+  color: '#0A0A0A',
+  lineHeight: '1.45',
+  textAlign: 'center',
   fontWeight: '500',
+  fontStyle: 'italic',
 };
-
-const audioBarsStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '3px',
-  height: '16px',
-};
-
-const barStyle = {
-  width: '3px',
-  height: '14px',
-  background: '#FF5A1F',
-  borderRadius: '2px',
-  animation: 'bounce 0.6s ease infinite alternate',
-};
-

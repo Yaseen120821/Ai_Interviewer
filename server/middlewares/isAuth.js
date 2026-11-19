@@ -24,9 +24,19 @@ const isAuth = async (req, res, next) => {
     try {
       decoded = jwt.verify(
         token,
-        process.env.JWT_SECRET || "interviewpilot_super_secret_jwt_key_2026_dev_secure"
+        process.env.JWT_SECRET || "mockmate_super_secret_jwt_key_2026_dev_secure"
       );
     } catch {
+      try {
+        decoded = jwt.verify(
+          token,
+          "interviewpilot_super_secret_jwt_key_2026_dev_secure"
+        );
+      } catch {
+        // Fall through to Firebase ID Token decode
+      }
+    }
+    if (!decoded) {
       // 2. Decode Firebase ID Token (3-part JWT)
       const unverified = jwt.decode(token);
       if (unverified && (unverified.user_id || unverified.sub || unverified.uid)) {

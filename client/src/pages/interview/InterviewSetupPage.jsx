@@ -3,7 +3,7 @@
 // - Mode A: Resume-Based Interview (Personalized questions from uploaded resume)
 // - Mode B: Job Description-Based Interview (NO RESUME REQUIRED — paste any JD)
 // - Mode C: General Role-Based Interview (NO RESUME REQUIRED — role & level practice)
-// Full fluid width adhering to the InterviewPilot design tokens.
+// Full fluid width adhering to the MockMate AI design tokens.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -139,6 +139,34 @@ export default function InterviewSetupPage() {
     isSubmittingRef.current = true;
 
     try {
+      // ── STEP 1: Mandatory Fullscreen Validation (Phase 3) ──
+      // Request browser fullscreen directly within the user click gesture
+      const elem = document.documentElement;
+      const requestFs = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.msRequestFullscreen || elem.mozRequestFullScreen;
+
+      if (!requestFs) {
+        throw new Error('Fullscreen API is not supported on this browser. MockMate AI requires a modern browser supporting Fullscreen (Chrome, Edge, or Firefox) for mock interviews.');
+      }
+
+      try {
+        await requestFs.call(elem);
+      } catch (fsErr) {
+        console.warn('[InterviewSetupPage] Fullscreen request rejected:', fsErr);
+        throw new Error('MockMate AI requires fullscreen mode for an authentic, distraction-free interview simulation. Please click "Start Mock Interview Now" again and allow fullscreen access.');
+      }
+
+      const isFsActive = Boolean(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
+
+      if (!isFsActive) {
+        throw new Error('Fullscreen mode was not confirmed by the browser. Please click "Start Mock Interview Now" again to enter fullscreen.');
+      }
+
+      // ── STEP 2: Only create interview session after fullscreen confirmed ──
       const payload = {
         company: companyName.trim() || undefined,
         companyName: companyName.trim() || undefined,
@@ -678,7 +706,7 @@ export default function InterviewSetupPage() {
   );
 }
 
-// ─── Inline Styles adhering strictly to InterviewPilot Tokens ────────────────
+// ─── Inline Styles adhering strictly to MockMate AI Tokens ────────────────
 const layoutStyle = {
   display: 'flex',
   minHeight: '100vh',

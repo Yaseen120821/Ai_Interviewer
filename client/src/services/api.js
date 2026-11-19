@@ -32,10 +32,10 @@ const api = axios.create({
 
 // ─── Request Interceptor ──────────────────────────────────────────────────────
 api.interceptors.request.use((config) => {
-  let token = localStorage.getItem('interviewpilot_token');
+  let token = localStorage.getItem('mockmate_token') || localStorage.getItem('interviewpilot_token');
   if (!token) {
     try {
-      const persisted = JSON.parse(localStorage.getItem('interviewpilot-auth') || '{}');
+      const persisted = JSON.parse(localStorage.getItem('mockmate-auth') || localStorage.getItem('interviewpilot-auth') || '{}');
       token = persisted?.state?.token;
     } catch {
       /* ignore parse error */
@@ -68,6 +68,8 @@ api.interceptors.response.use(
     const requestUrl = config?.url || '';
     const isAuthRoute = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
     if (status === 401 && !isAuthRoute) {
+      localStorage.removeItem('mockmate_token');
+      localStorage.removeItem('mockmate_user');
       localStorage.removeItem('interviewpilot_token');
       localStorage.removeItem('interviewpilot_user');
       if (window.location.pathname !== '/login') {

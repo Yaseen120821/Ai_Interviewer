@@ -1,5 +1,5 @@
 // src/pages/auth/RegisterPage.jsx
-// Firebase Authentication Registration (Email/Password + Google Login) with InterviewPilot design system.
+// Firebase Authentication Registration (Email/Password + Google Login) with MockMate AI design system.
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -185,7 +185,7 @@ export default function RegisterPage() {
         <Logo to="/" className="auth-logo" />
 
         <h1>Create your account</h1>
-        <p className="auth-sub">Start practicing AI mock interviews with Firebase Authentication.</p>
+        <p className="auth-sub">Start practicing AI mock interviews with MockMate AI.</p>
 
         {error && <div className="auth-error">{error}</div>}
 

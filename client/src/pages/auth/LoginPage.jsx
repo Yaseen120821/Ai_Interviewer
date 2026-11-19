@@ -1,5 +1,5 @@
 // src/pages/auth/LoginPage.jsx
-// Firebase Authentication (Email/Password + Google Login) with InterviewPilot design system.
+// Firebase Authentication (Email/Password + Google Login) with MockMate AI design system.
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -233,7 +233,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const demoEmail = `candidate_${Date.now()}@interviewpilot.ai`;
+      const demoEmail = `candidate_${Date.now()}@mockmate.ai`;
       const res = await authService.syncProfile({
         email: demoEmail,
         name: 'Alex Rivera (Demo)',
@@ -256,7 +256,7 @@ export default function LoginPage() {
         <Logo to="/" className="auth-logo" />
 
         <h1>Welcome back</h1>
-        <p className="auth-sub">Sign in to your AI interview preparation workspace.</p>
+        <p className="auth-sub">Sign in to your MockMate AI interview preparation workspace.</p>
 
         {error && <div className="auth-error">{error}</div>}
         {successMsg && <div className="auth-success">{successMsg}</div>}

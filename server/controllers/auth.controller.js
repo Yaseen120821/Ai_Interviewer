@@ -2,7 +2,7 @@
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "interviewpilot_super_secret_jwt_key_2026_dev_secure";
+const JWT_SECRET = process.env.JWT_SECRET || "mockmate_super_secret_jwt_key_2026_dev_secure";
 
 export const firebaseSync = async (req, res) => {
   try {
@@ -45,9 +45,9 @@ export const firebaseSync = async (req, res) => {
       }
     } catch (dbErr) {
       console.warn("[auth.controller] Prisma fallback/mock mode:", dbErr.message);
-      // Fallback in-memory user record if DB is offline during quick testing
+      // Fallback in-memory user record using the permanent Firebase UID
       user = {
-        id: `usr_${Date.now()}`,
+        id: cleanUid, // Stable, immutable Firebase UID ensuring session persistence
         email: cleanEmail,
         name: cleanName,
         instantUserId: cleanUid,
@@ -121,7 +121,7 @@ export const getMe = async (req, res) => {
       user = {
         id: req.userId,
         name: req.user?.name || "Candidate",
-        email: req.user?.email || "candidate@interviewpilot.ai",
+        email: req.user?.email || "candidate@mockmate.ai",
         credits: 100,
       };
     }

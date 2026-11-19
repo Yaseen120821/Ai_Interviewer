@@ -1,63 +1,67 @@
 /* ─── Google Fonts ─────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Anton&family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
-/* ─── InterviewPilot Design Tokens ─────────────────────────────────────────── */
+/* ─── MockMate AI Design Tokens (Enterprise SaaS) ─────────────────────────── */
 :root {
-  --font-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
-  --font-display: 'Anton', impact, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: 'Instrument Serif', Georgia, serif;
 
-  /* Colors */
-  --bg:           #F2EEE6;
+  /* Surfaces & Canvas */
+  --bg:           #F8FAFC;
   --surface:      #FFFFFF;
   --card:         #FFFFFF;
-  --card-raised:  #FAF8F5;
+  --card-raised:  #FFFFFF;
 
   /* Primary & Text */
-  --ink:          #0A0A0A;
-  --text:         #0A0A0A;
-  --text-2:       #6B675F;
-  --text-3:       #9C988F;
-  --muted:        #6B675F;
+  --ink:          #0F172A;
+  --text:         #0F172A;
+  --text-2:       #64748B;
+  --text-3:       #94A3B8;
+  --muted:        #64748B;
 
   /* Accents */
-  --yellow:       #F4CF63;
   --accent:       #FF5A1F;
-  --accent-hover: #E04E19;
+  --accent-hover: #EA580C;
+  --accent-dim:   rgba(255, 90, 31, 0.08);
   --orange:       #FF5A1F;
-  --line:         #E3DED2;
-  --border:       #E3DED2;
-  --border-hover: #0A0A0A;
+  --line:         #E2E8F0;
+  --border:       #E2E8F0;
+  --border-hover: #CBD5E1;
 
-  /* Status */
-  --success:      #1E7E34;
-  --success-dim:  rgba(30, 126, 52, 0.12);
-  --error:        #EC4F5F;
-  --error-dim:    rgba(236, 79, 95, 0.12);
-  --warning:      #F4CF63;
-  --warning-dim:  rgba(244, 207, 99, 0.25);
-  --info:         #0A0A0A;
-  --info-dim:     rgba(10, 10, 10, 0.08);
+  /* Status Tokens */
+  --success:      #10B981;
+  --success-dim:  rgba(16, 185, 129, 0.1);
+  --error:        #EF4444;
+  --error-dim:    rgba(239, 68, 68, 0.1);
+  --warning:      #F59E0B;
+  --warning-dim:  rgba(245, 158, 11, 0.1);
+  --info:         #2563EB;
+  --info-dim:     rgba(37, 99, 235, 0.08);
 
   /* Shadows */
-  --shadow-sm:    0 1px 3px rgba(0,0,0,0.04);
-  --shadow-md:    0 8px 24px rgba(0,0,0,0.06);
-  --shadow-lg:    0 16px 40px rgba(0,0,0,0.08);
+  --shadow-xs:    0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-sm:    0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.06);
+  --shadow-md:    0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --shadow-lg:    0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
 
   /* Radii */
-  --r-sm:   8px;
-  --r-md:   12px;
-  --r-lg:   16px;
-  --r-xl:   24px;
+  --r-xs:   4px;
+  --r-sm:   6px;
+  --r-md:   10px;
+  --r-lg:   12px;
+  --r-xl:   16px;
   --r-full: 9999px;
 
   /* Transitions */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --t-fast: 120ms var(--ease);
-  --t-base: 220ms var(--ease);
+  --t-base: 200ms var(--ease);
 
-  /* Navbar */
-  --navbar-h: 68px;
+  /* Navbar & Sidebar */
+  --navbar-h: 64px;
+  --sidebar-w: 260px;
+  --sidebar-collapsed-w: 74px;
 
   /* Legacy aliases */
   --color-bg:           var(--bg);
@@ -126,4 +130,19 @@ input, textarea, select {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
+}
+
+/* ─── MockMate Responsive Collapsible Sidebar ────────────────────────── */
+@media (max-width: 768px) {
+  .mockmate-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.18);
+  }
+  .mockmate-sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
 }

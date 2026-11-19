@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
 import { interviewService } from '../../services/interviewService';
 import { reportService } from '../../services/reportService';
+import firestoreService from '../../services/firestoreService';
 import Logo from '../../components/Logo';
 
 // Styles are included in this file, so no separate CSS file is needed.
@@ -141,43 +142,68 @@ export default function InterviewHistoryPage({
 
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
+    const userId = rawUser?.id || rawUser?.uid;
+
+    const loadHistory = async () => {
       try {
         setLoading(true);
-        const res = await interviewService.getAll();
-        const data = res.data?.data || res.data || [];
-        const list = Array.isArray(data) ? data : [];
-        if (!mounted) return;
-        setSessions(list);
 
-        // Map reports directly from embedded session.report (0 extra queries)
-        const reportMap = {};
-        const missingReports = [];
+        // Fetch concurrently from both Cloud Firestore and backend API
+        const [firestoreRes, apiRes] = await Promise.allSettled([
+          userId ? firestoreService.getUserInterviews(userId) : Promise.resolve([]),
+          interviewService.getAll(),
+        ]);
 
-        list.forEach((s) => {
-          if (s.report) {
-            reportMap[s.id] = s.report;
-          } else if (s.status === 'completed') {
-            missingReports.push(s.id);
-          }
+        const firestoreList = firestoreRes.status === 'fulfilled' && Array.isArray(firestoreRes.value) ? firestoreRes.value : [];
+        const apiData = apiRes.status === 'fulfilled' ? (apiRes.value?.data?.data || apiRes.value?.data || []) : [];
+        const apiList = Array.isArray(apiData) ? apiData : [];
+
+        // Merge and deduplicate by session ID
+        const sessionMap = new Map();
+
+        // 1. Ingest Firestore records (persistent source of truth across logout/login)
+        firestoreList.forEach((s) => {
+          if (!s || !s.id) return;
+          sessionMap.set(s.id, {
+            id: s.id,
+            roleTarget: s.jobRole || s.roleTarget || s.role || 'Technical Interview',
+            type: s.roundType || s.interviewType || s.type || 'technical',
+            difficulty: s.difficulty || 'Medium',
+            status: s.interviewStatus || s.status || 'completed',
+            createdAt: s.createdAt?.toDate ? s.createdAt.toDate().toISOString() : s.createdAt || new Date().toISOString(),
+            questions: s.questions || [],
+            report: s.report || s.reportData || null,
+            overallScore: s.overallScore ?? s.report?.overallScore ?? null,
+          });
         });
 
-        // If any completed sessions lacked embedded reports, fetch all reports in a single query
-        if (missingReports.length > 0) {
-          try {
-            const allReportsRes = await reportService.getAll();
-            const allReports = allReportsRes.data?.data || allReportsRes.data || [];
-            if (Array.isArray(allReports)) {
-              allReports.forEach((r) => {
-                if (r.sessionId) reportMap[r.sessionId] = r;
-              });
-            }
-          } catch {
-            // Non-critical: sessions will still render with available data
-          }
-        }
+        // 2. Overlay backend API records
+        apiList.forEach((s) => {
+          if (!s || !s.id) return;
+          const existing = sessionMap.get(s.id) || {};
+          sessionMap.set(s.id, {
+            ...existing,
+            ...s,
+            roleTarget: s.roleTarget || existing.roleTarget || 'Technical Interview',
+            status: s.status || existing.status || 'completed',
+            report: s.report || existing.report || null,
+            overallScore: s.report?.overallScore ?? existing.overallScore ?? null,
+            questions: s.questions && s.questions.length ? s.questions : existing.questions || [],
+          });
+        });
 
-        if (mounted) setReports(reportMap);
+        const merged = Array.from(sessionMap.values());
+        if (!mounted) return;
+        setSessions(merged);
+
+        // Map reports
+        const reportMap = {};
+        merged.forEach((s) => {
+          if (s.report) {
+            reportMap[s.id] = s.report;
+          }
+        });
+        setReports(reportMap);
       } catch (err) {
         if (mounted) {
           setError(
@@ -192,9 +218,43 @@ export default function InterviewHistoryPage({
       }
     };
 
-    load();
-    return () => { mounted = false; };
-  }, []);
+    loadHistory();
+
+    // Realtime Firestore subscription
+    let unsubscribe = () => {};
+    if (userId) {
+      unsubscribe = firestoreService.subscribeToUserInterviews(userId, (fbInterviews) => {
+        if (mounted && Array.isArray(fbInterviews) && fbInterviews.length > 0) {
+          setSessions((prev) => {
+            const map = new Map(prev.map((item) => [item.id, item]));
+            fbInterviews.forEach((s) => {
+              if (s && s.id) {
+                const ex = map.get(s.id) || {};
+                map.set(s.id, {
+                  ...ex,
+                  id: s.id,
+                  roleTarget: s.jobRole || s.roleTarget || s.role || ex.roleTarget || 'Technical Interview',
+                  type: s.roundType || s.interviewType || s.type || ex.type || 'technical',
+                  difficulty: s.difficulty || ex.difficulty || 'Medium',
+                  status: s.interviewStatus || s.status || ex.status || 'completed',
+                  createdAt: s.createdAt?.toDate ? s.createdAt.toDate().toISOString() : s.createdAt || ex.createdAt || new Date().toISOString(),
+                  questions: s.questions || ex.questions || [],
+                  report: s.report || s.reportData || ex.report || null,
+                  overallScore: s.overallScore ?? s.report?.overallScore ?? ex.overallScore ?? null,
+                });
+              }
+            });
+            return Array.from(map.values());
+          });
+        }
+      });
+    }
+
+    return () => {
+      mounted = false;
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [rawUser?.id, rawUser?.uid]);
 
   async function signOut() {
     try {
@@ -216,34 +276,34 @@ export default function InterviewHistoryPage({
     });
   };
 
-  // Map backend sessions to Claude UI item format
+  // Map sessions to UI item format
   const sorted = [...sessions].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const interviews = sorted.map((s) => {
-    const report = reports[s.id];
+    const report = reports[s.id] || s.report;
     let score = null;
-    if (report?.overallScore != null) {
-      score = Math.round(report.overallScore * 10);
+    const rawScore = report?.overallScore ?? s.overallScore;
+    if (rawScore != null && typeof rawScore === 'number') {
+      score = Math.round(rawScore <= 10 ? rawScore * 10 : rawScore);
     }
 
-    let href = null;
-    if (s.status === 'completed' && report?.id) {
-      href = `/report/${report.id}`;
-    } else if (s.status === 'active' || s.status === 'pending') {
-      href = `/interview/${s.id}`;
+    // Always link completed interviews directly to their report page
+    const isCompleted = s.status === 'completed';
+    const href = isCompleted ? `/report/${s.id}` : `/interview/${s.id}`;
+
+    const questionCount = s.questions?.length ?? s.totalQuestions ?? 5;
+
+    let displayStatus = 'In Progress';
+    if (isCompleted) {
+      displayStatus = rawScore != null ? 'Completed' : 'Recorded';
+    } else if (s.status === 'pending') {
+      displayStatus = 'Pending';
     }
-
-    const questionCount = s.questions?.length ?? s._count?.questions ?? null;
-
-    let displayStatus = s.status;
-    if (s.status === 'active') displayStatus = 'In Progress';
-    else if (s.status === 'completed') displayStatus = 'Completed';
-    else if (s.status === 'pending') displayStatus = 'Pending';
 
     return {
       id: s.id,
       role: s.roleTarget || 'Technical Interview',
-      type: TYPE_LABELS[s.type] || s.type,
-      difficulty: s.difficulty,
+      type: TYPE_LABELS[s.type] || s.type || 'Technical',
+      difficulty: s.difficulty || 'Medium',
       questions: questionCount,
       date: formatDate(s.createdAt),
       status: displayStatus,

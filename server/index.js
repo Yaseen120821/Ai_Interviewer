@@ -15,6 +15,7 @@ import paymentRouter from "./routes/payment.route.js";
 import resumeRouter from "./routes/resume.route.js";
 import reportRouter from "./routes/report.route.js";
 import roadmapRouter from "./routes/roadmap.route.js";
+import githubRouter from "./routes/github.route.js";
 
 const app = express();
 
@@ -69,6 +70,7 @@ const mountRouters = (prefix) => {
   app.use(`${prefix}/report`, reportRouter);
   app.use(`${prefix}/roadmaps`, roadmapRouter);
   app.use(`${prefix}/roadmap`, roadmapRouter);
+  app.use(`${prefix}/github`, githubRouter);
 };
 
 mountRouters("/api");

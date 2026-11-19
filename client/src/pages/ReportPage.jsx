@@ -835,26 +835,64 @@ export default function ReportPage() {
       try {
         setLoading(true);
         setError('');
-        const res = await reportService.getById(id);
+        let data = null;
+
+        // 1. Attempt retrieval from backend report API
+        try {
+          const res = await reportService.getById(id);
+          data = res.data?.data || res.data;
+        } catch (apiErr) {
+          console.warn('[ReportPage] Backend API fetch note:', apiErr.message);
+        }
+
+        // 2. Fallback to Cloud Firestore if backend returned empty or 404
+        if (!data || (!data.overallScore && !data.summary)) {
+          try {
+            const [fbResult, fbInterview] = await Promise.allSettled([
+              firestoreService.getResult(id),
+              firestoreService.getInterview(id),
+            ]);
+
+            const resDoc = fbResult.status === 'fulfilled' ? fbResult.value : null;
+            const invDoc = fbInterview.status === 'fulfilled' ? fbInterview.value : null;
+
+            if (resDoc?.reportData) {
+              data = resDoc.reportData;
+            } else if (invDoc?.report) {
+              data = invDoc.report;
+            } else if (resDoc) {
+              data = {
+                sessionId: id,
+                overallScore: resDoc.overallScore ?? null,
+                summary: resDoc.feedback || 'Interview completed.',
+                session: invDoc || {},
+                evaluated: resDoc.overallScore != null,
+              };
+            }
+          } catch (fsErr) {
+            console.warn('[ReportPage] Firestore fallback fetch notice:', fsErr.message);
+          }
+        }
+
+        if (!data) {
+          throw new Error('Interview report could not be found for this session.');
+        }
+
         if (!mounted) return;
-        const data = res.data?.data || res.data;
         setReport(data);
         setExpandedQuestions({ 0: true });
 
-        // Synchronize result record to Cloud Firestore
+        // Synchronize result record to Cloud Firestore if evaluated
         try {
-          firestoreService.saveResult({
-            interviewId: id,
-            userId: rawUser?.id || rawUser?.uid,
-            overallScore: data?.overallScore ?? 0,
-            phaseWiseScores: {
-              confidence: data?.confidenceScore ?? 0,
-              communication: data?.communicationScore ?? 0,
-              technical: data?.technicalAccuracyScore ?? 0,
-            },
-            feedback: data?.summary || data?.overallFeedback || '',
-            completionStatus: 'completed',
-          });
+          if (data?.overallScore != null) {
+            firestoreService.saveResult({
+              interviewId: id,
+              userId: rawUser?.id || rawUser?.uid,
+              overallScore: data.overallScore,
+              feedback: data.summary || '',
+              completionStatus: 'completed',
+            });
+          }
         } catch {
           /* ignore */
         }
@@ -863,6 +901,7 @@ export default function ReportPage() {
         const msg =
           err?.response?.data?.error?.message ||
           err?.response?.data?.message ||
+          err?.message ||
           'Failed to load interview report.';
         setError(msg);
       } finally {
@@ -874,7 +913,7 @@ export default function ReportPage() {
     return () => {
       mounted = false;
     };
-  }, [id]);
+  }, [id, rawUser?.id, rawUser?.uid]);
 
   const toggleQuestion = (idx) => {
     setExpandedQuestions((prev) => ({

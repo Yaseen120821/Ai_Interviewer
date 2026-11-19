@@ -434,7 +434,7 @@ export default function CodingWorkspacePage() {
   );
 }
 
-// ─── Inline Styles adhering to InterviewPilot Palette ────────────────────────
+// ─── Inline Styles adhering to MockMate AI Palette ────────────────────────
 const containerStyle = {
   minHeight: '100vh',
   background: '#F2EEE6',

@@ -82,7 +82,7 @@ html {
 }
 
 /* ── 2. DIFFERENT SECTION ENTRANCE MOTIONS (SCROLL DOWN + UP DYNAMIC) ────── */
-/* What is InterviewPilot: Heading from Left, Body from Right */
+/* What is MockMate: Heading from Left, Body from Right */
 .ip .what {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1186,7 +1186,7 @@ html {
   transition-delay: 0s !important;
 }
 
-/* ── 12. WHY INTERVIEWPILOT SECTION ──────────────────────────────────────── */
+/* ── 12. WHY MOCKMATE SECTION ────────────────────────────────────────── */
 .ip .no {
   font-family: 'Anton', Impact, sans-serif;
   text-transform: uppercase;

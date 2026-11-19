@@ -1,6 +1,8 @@
-# Ai_Interviewer — Unified AI Interview Preparation Platform
+# MockMate AI — Business-Grade AI Mock Interview & Developer Platform
 
-An end-to-end, full-stack AI mock interview and career preparation platform combining **InterviewPilot's visual identity & UX design** with **Elevo's mock interview features**, standardized on **Google Gemini AI** and **Firebase Authentication & Cloud Firestore**.
+**MockMate AI** — "Practice Smarter. Interview Better. Get Hired."
+
+An end-to-end, business-grade AI mock interview, developer analytics, and career preparation platform featuring **fullscreen AI avatar interview simulations, question-first narration, deep analytics dashboard, developer GitHub progress tracking, LeetCode profile linking, and open-source coding practice**, standardized on **Google Gemini AI** and **Firebase Authentication & Cloud Firestore (Spark Free Plan)**.
 
 Primary working directory: `Ai_Interviewer/`
 
@@ -8,16 +10,16 @@ Primary working directory: `Ai_Interviewer/`
 
 ## 🌟 Key Features
 
-1. **InterviewPilot Design System**: Warm cream background (`#F2EEE6`), deep typography (`#0A0A0A`), crisp cards (`#FFFFFF`), butter yellow (`#F4CF63`), electric coral (`#FF5A1F`), Space Grotesk, Anton, Instrument Serif, and interactive animated SVG robot.
-2. **Firebase Authentication & Cloud Firestore**: Official Firebase Modular SDK (Project: `clinic appointment`) providing Email/Password signup & signin, real-time listeners, and document isolation security rules.
-3. **Google Gemini AI (Single AI Provider)**: Exclusively powered by `@google/generative-ai` (`gemini-2.5-flash` with multi-candidate fallbacks).
-4. **Interactive Multi-Modal Avatar**: Animated SVG robot + video avatars (`male-ai.mp4`, `female-ai.mp4`), dynamic Web Audio visualizer, reactive states, and browser speech synthesis (TTS) & recognition (STT) with active echo prevention.
-5. **9-Section Setup Wizard**: Comprehensive, Quick, or Adaptive modes; HR, Technical, Mixed; per-question circular timers (60s–180s) with auto-submit.
-6. **Adaptive Interview Engine**: Evaluates answers across 3 metrics (Confidence, Communication, Correctness: 0–10) and dynamically generates personalized follow-up questions.
-7. **Monaco Coding Round**: Multi-language editor, Judge0 test execution, and Gemini AI time/space complexity review.
-8. **ATS Resume Analysis & Optimizer**: PDF text extraction (`pdf-parse`), match score (0–100), keyword detection, bullet point rewrites, and jsPDF export.
-9. **Reports & Learning Roadmaps**: Performance metrics, radar charts, gap analysis, and branded PDF downloads.
-10. **Razorpay Credit System**: Credit packs and signature-verified checkout.
+1. **MockMate AI Design System**: Warm cream background (`#F2EEE6`), deep typography (`#0A0A0A`), crisp cards (`#FFFFFF`), butter yellow (`#F4CF63`), electric coral (`#FF5A1F`), Space Grotesk, Anton, Instrument Serif, collapsible sidebar, and responsive mobile drawers.
+2. **Question-First AI Avatar Narration**: Complete question spoken aloud via Speech Synthesis before the response timer or candidate input unlocks, with a strict avatar state machine (`IDLE`, `LOADING`, `SPEAKING`, `LISTENING`, `PROCESSING`, `ERROR`, `COMPLETED`).
+3. **Mandatory Fullscreen Interview Simulation**: Browser Fullscreen API integration requested on setup start, with active fullscreen-loss detection that pauses timers and preserves responses.
+4. **Business-Grade Analytics Dashboard**: 8 key operational metrics (Total, Completed, In-Progress, Average Score, Highest Score, Practice Time, Completion Rate, Score Improvement), interactive performance trend lines (7d/30d/90d/All), skill radar charts, and recent activity logs.
+5. **Candidate Profile System**: Comprehensive user profile with technical skill proficiency levels, LinkedIn, GitHub, LeetCode, portfolio links, and local PDF resume lifecycle management.
+6. **GitHub Integration & Progress Tracking**: Real-time integration with GitHub Public REST API displaying repositories, stars, forks, primary languages, and recent public activity.
+7. **Open-Source Coding Practice & LeetCode Linking**: Curated algorithmic problem bank across 15+ topics with difficulty filters, in-browser Monaco code workspace, test case verification, and external LeetCode progress linking.
+8. **Firebase Authentication & Cloud Firestore (Spark Free Plan)**: Official Firebase Modular SDK providing persistent user isolation via immutable Firebase UID (`users/{uid}`) with zero Firebase Storage dependencies.
+9. **Google Gemini AI Integration**: Structured interview questions, real-time rubric evaluations, and personalized learning roadmaps with graceful fallback when API key is unconfigured.
+10. **Resume & JD Multi-Mode Interviews**: Support for Resume-based, Job Description-based (no resume needed), and General Role-based interview simulations.
 
 ---
 

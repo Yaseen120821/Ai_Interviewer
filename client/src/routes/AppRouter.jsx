@@ -1,5 +1,5 @@
 // src/routes/AppRouter.jsx
-// Central routing definition linking all InterviewPilot application pages.
+// Central routing definition linking all MockMate AI application pages.
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
@@ -17,6 +17,10 @@ const InterviewSetupPage   = lazy(() => import('../pages/interview/InterviewSetu
 const InterviewSessionPage = lazy(() => import('../pages/interview/InterviewSessionPage'));
 const InterviewHistoryPage = lazy(() => import('../pages/interview/InterviewHistoryPage'));
 const CodingWorkspacePage  = lazy(() => import('../pages/interview/CodingWorkspacePage'));
+const CodingPracticePage   = lazy(() => import('../pages/coding/CodingPracticePage'));
+const GitHubProgressPage   = lazy(() => import('../pages/github/GitHubProgressPage'));
+const ProfilePage          = lazy(() => import('../pages/profile/ProfilePage'));
+const SettingsPage         = lazy(() => import('../pages/SettingsPage'));
 const AtsResumePage        = lazy(() => import('../pages/AtsResumePage'));
 const PricingPage          = lazy(() => import('../pages/PricingPage'));
 const ReportPage           = lazy(() => import('../pages/ReportPage'));
@@ -52,7 +56,7 @@ const Loader = () => (
       animation: 'ipSpin 0.8s linear infinite',
     }} />
     <span style={{ fontSize: '13px', color: '#6B675F', fontWeight: 500 }}>
-      Loading InterviewPilot...
+      Loading MockMate AI...
     </span>
   </div>
 );
@@ -74,6 +78,10 @@ const AppRouter = () => (
 
           {/* Protected Dashboard & Operations */}
           <Route path="/dashboard"          element={<AuthShell><DashboardPage /></AuthShell>} />
+          <Route path="/profile"            element={<AuthShell><ProfilePage /></AuthShell>} />
+          <Route path="/github"             element={<AuthShell><GitHubProgressPage /></AuthShell>} />
+          <Route path="/coding"             element={<AuthShell><CodingPracticePage /></AuthShell>} />
+          <Route path="/settings"           element={<AuthShell><SettingsPage /></AuthShell>} />
           <Route path="/resume"             element={<AuthShell><ResumePage /></AuthShell>} />
           <Route path="/resume/ats"         element={<AuthShell><AtsResumePage /></AuthShell>} />
           <Route path="/pricing"            element={<AuthShell><PricingPage /></AuthShell>} />

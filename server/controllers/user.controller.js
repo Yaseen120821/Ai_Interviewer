@@ -24,7 +24,7 @@ export const getCurrentUser = async (req, res) => {
       user = {
         id: userId,
         name: req.user?.name || "Candidate",
-        email: req.user?.email || "candidate@interviewpilot.ai",
+        email: req.user?.email || "candidate@mockmate.ai",
         credits: 100,
       };
     }
@@ -83,7 +83,7 @@ export const getDashboardMetrics = async (req, res) => {
       data: {
         user: user || {
           name: req.user?.name || "Candidate",
-          email: req.user?.email || "candidate@interviewpilot.ai",
+          email: req.user?.email || "candidate@mockmate.ai",
           credits: 100,
         },
         stats: {

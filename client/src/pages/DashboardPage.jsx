@@ -1,121 +1,126 @@
 // src/pages/DashboardPage.jsx
-// Signature InterviewPilot AI Dashboard with real-time Firebase Firestore synchronization,
-// fluid widescreen layout, zero empty margins, and multi-mode interview launching.
+// MockMate AI Premium Enterprise SaaS Dashboard
+// Redesigned with Linear/Stripe aesthetic, structured 3-part layout, 8 KPI cards,
+// interactive SVG performance trend, skill diagnostics, data table, format distribution, activity feed, and recommendations.
 
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/layout/Sidebar';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import firestoreService from '../services/firestoreService';
 import { resumeService } from '../services/resumeService';
-import {
-  Sparkles,
-  Mic,
-  Code2,
-  ScanText,
-  Layers,
-  Award,
-  ArrowRight,
-  TrendingUp,
-  FileText,
-  Coins,
-  CheckCircle2,
-  Clock,
-  Briefcase,
-  Play,
-} from 'lucide-react';
+
+// Modular Dashboard Components
+import DashboardHeader from '../components/dashboard/DashboardHeader';
+import DashboardKpiGrid from '../components/dashboard/DashboardKpiGrid';
+import InterviewScoreTrend from '../components/dashboard/InterviewScoreTrend';
+import SkillDiagnostics from '../components/dashboard/SkillDiagnostics';
+import RecentInterviewsTable from '../components/dashboard/RecentInterviewsTable';
+import InterviewDistribution from '../components/dashboard/InterviewDistribution';
+import RecentActivityFeed from '../components/dashboard/RecentActivityFeed';
+import RecommendedActions from '../components/dashboard/RecommendedActions';
+import DashboardEmptyState from '../components/dashboard/DashboardEmptyState';
+import DashboardLoadingState from '../components/dashboard/DashboardLoadingState';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
 
-  const [metrics, setMetrics] = useState({
-    totalCompleted: 0,
-    totalSessions: 0,
-    avgScore: 0,
-    bestScore: 0,
-    roadmapProgress: 0,
-    atsCount: 0,
-  });
+  const [loading, setLoading] = useState(true);
+  const [interviews, setInterviews] = useState([]);
   const [activeResume, setActiveResume] = useState(null);
-  const [recentInterviews, setRecentInterviews] = useState([]);
+  const [trendRange, setTrendRange] = useState('all'); // '7d' | '30d' | '90d' | 'all'
 
-  // 1. Fetch initial dashboard data & active resume
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const [dashRes, resumeRes] = await Promise.allSettled([
-          api.get('/users/dashboard'),
-          resumeService.getActive(),
-        ]);
+  // 1. Fetch data from backend and Firestore
+  const loadDashboardData = async () => {
+    try {
+      const [interviewsRes, resumeRes] = await Promise.allSettled([
+        api.get('/interviews'),
+        resumeService.getActive(),
+      ]);
 
-        if (dashRes.status === 'fulfilled') {
-          const data = dashRes.value.data?.data || dashRes.value.data;
-          if (data?.metrics) setMetrics(data.metrics);
-          if (data?.stats) {
-            setMetrics((prev) => ({
-              ...prev,
-              totalCompleted: data.stats.totalCompleted ?? prev.totalCompleted,
-              avgScore: data.stats.averageScore ?? prev.avgScore,
-              bestScore: data.stats.bestScore ?? prev.bestScore,
-            }));
-          }
-          if (data?.user) {
-            updateUser({
-              name: data.user.name || user?.name,
-              credits: data.user.credits !== undefined ? data.user.credits : user?.credits,
-            });
-          }
-          if (data?.recentSessions) setRecentInterviews(data.recentSessions);
-        }
-
-        if (resumeRes.status === 'fulfilled' && resumeRes.value?.data?.data) {
-          setActiveResume(resumeRes.value.data.data);
-        }
-      } catch {
-        // Fallback fetch
-        try {
-          const sessionsRes = await api.get('/interviews');
-          const list = sessionsRes.data?.data || sessionsRes.data || [];
-          setRecentInterviews(list.slice(0, 5));
-          const completed = list.filter((s) => s.status === 'completed');
-          setMetrics((prev) => ({
-            ...prev,
-            totalCompleted: completed.length,
-            totalSessions: list.length,
-          }));
-        } catch {
-          /* ignore */
-        }
+      let backendList = [];
+      if (interviewsRes.status === 'fulfilled') {
+        backendList = interviewsRes.value.data?.data || interviewsRes.value.data || [];
+        if (!Array.isArray(backendList)) backendList = [];
       }
-    };
 
-    fetchDashboardData();
+      if (resumeRes.status === 'fulfilled' && resumeRes.value?.data?.data) {
+        setActiveResume(resumeRes.value.data.data);
+      }
 
-    // 2. Realtime Firestore synchronization for interviews
-    const userId = user?.id || user?.uid;
-    let unsubscribeInterviews = () => {};
-    let unsubscribeProfile = () => {};
+      // Merge with Firestore records
+      const uid = user?.id || user?.uid;
+      let firestoreList = [];
+      if (uid) {
+        try {
+          firestoreList = await firestoreService.getUserInterviews(uid);
+        } catch { /* ignore */ }
+      }
 
-    if (userId) {
-      unsubscribeInterviews = firestoreService.subscribeToUserInterviews(userId, (fbInterviews) => {
-        if (fbInterviews && fbInterviews.length > 0) {
-          setRecentInterviews(fbInterviews.slice(0, 5));
-          const completed = fbInterviews.filter(
-            (i) => i.interviewStatus === 'completed' || i.status === 'completed'
-          );
-          setMetrics((prev) => ({
-            ...prev,
-            totalCompleted: Math.max(prev.totalCompleted, completed.length),
-            totalSessions: Math.max(prev.totalSessions, fbInterviews.length),
-          }));
+      // Deduplicate sessions by ID
+      const mergedMap = new Map();
+      [...firestoreList, ...backendList].forEach((item) => {
+        if (!item || !item.id) return;
+        const existing = mergedMap.get(item.id);
+        if (!existing) {
+          mergedMap.set(item.id, item);
+        } else {
+          mergedMap.set(item.id, {
+            ...existing,
+            ...item,
+            overallScore: item.overallScore ?? existing.overallScore,
+            interviewStatus: item.interviewStatus || item.status || existing.interviewStatus,
+            report: item.report || existing.report,
+          });
         }
       });
 
-      // Synchronize credits and profile changes in real time
-      unsubscribeProfile = firestoreService.subscribeToUserProfile(userId, (profile) => {
+      const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
+        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+
+      setInterviews(mergedList);
+    } catch (err) {
+      console.warn('[DashboardPage] Load data error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+
+    // Realtime Firestore subscription
+    const uid = user?.id || user?.uid;
+    let unsubInterviews = () => {};
+    let unsubProfile = () => {};
+
+    if (uid) {
+      unsubInterviews = firestoreService.subscribeToUserInterviews(uid, (fbList) => {
+        if (fbList && Array.isArray(fbList)) {
+          setInterviews((prev) => {
+            const map = new Map();
+            [...fbList, ...prev].forEach((item) => {
+              if (item && item.id) {
+                const ex = map.get(item.id);
+                map.set(item.id, ex ? { ...ex, ...item } : item);
+              }
+            });
+            return Array.from(map.values()).sort((a, b) => {
+              const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+              const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+              return timeB - timeA;
+            });
+          });
+        }
+      });
+
+      unsubProfile = firestoreService.subscribeToUserProfile(uid, (profile) => {
         if (profile) {
           updateUser({
             name: profile.name || profile.displayName || user?.name,
@@ -127,242 +132,280 @@ export default function DashboardPage() {
     }
 
     return () => {
-      if (typeof unsubscribeInterviews === 'function') unsubscribeInterviews();
-      if (typeof unsubscribeProfile === 'function') unsubscribeProfile();
+      unsubInterviews();
+      unsubProfile();
     };
-  }, [user?.id, user?.uid, updateUser]);
+  }, [user?.id, user?.uid]);
 
-  const userName = user?.name || user?.email?.split('@')[0] || 'Candidate';
+  // 2. Computed Real Metrics from Authenticated User Records
+  const analytics = useMemo(() => {
+    const total = interviews.length;
+    const completedList = interviews.filter(
+      (i) => i.interviewStatus === 'completed' || i.status === 'completed'
+    );
+    const inProgressList = interviews.filter(
+      (i) => i.interviewStatus === 'in-progress' || i.status === 'in-progress'
+    );
+
+    // Strictly filter genuine evaluated scores (numerical, not NaN)
+    const evaluatedScores = completedList
+      .map((i) => i.overallScore ?? i.report?.overallScore)
+      .filter((s) => typeof s === 'number' && !isNaN(s));
+
+    const avgScore = evaluatedScores.length
+      ? Number((evaluatedScores.reduce((a, b) => a + b, 0) / evaluatedScores.length).toFixed(1))
+      : 0;
+
+    const highestScore = evaluatedScores.length ? Math.max(...evaluatedScores) : 0;
+
+    // Total practice time calculated from questions answered * question timeLimit
+    const totalMinutes = completedList.reduce((acc, curr) => {
+      const qCount = curr.totalQuestions || curr.questionCount || 5;
+      const limitSec = curr.timeLimitPerQuestion || curr.timeLimit || 90;
+      return acc + Math.round((qCount * limitSec) / 60);
+    }, 0);
+
+    const completionRate = total > 0 ? Math.round((completedList.length / total) * 100) : 0;
+
+    // Improvement calculation: compare earliest evaluated score with latest evaluated score
+    let scoreImprovement = null;
+    if (evaluatedScores.length >= 2) {
+      const chronological = [...completedList]
+        .reverse()
+        .map((i) => i.overallScore ?? i.report?.overallScore)
+        .filter((s) => typeof s === 'number' && !isNaN(s));
+      if (chronological.length >= 2) {
+        const first = chronological[0];
+        const latest = chronological[chronological.length - 1];
+        const diff = Number((latest - first).toFixed(1));
+        scoreImprovement = diff >= 0 ? `+${diff}` : `${diff}`;
+      }
+    }
+
+    // Interview Types breakdown
+    const typeCounts = {
+      resume: interviews.filter((i) => i.resumeId || i.mode === 'resume').length,
+      jd: interviews.filter((i) => i.jobDescription || i.mode === 'jd').length,
+      role: interviews.filter((i) => !i.resumeId && !i.jobDescription).length,
+    };
+
+    // Skill rubrics extracted from completed reports
+    const skillAverages = {
+      technical: 0,
+      communication: 0,
+      confidence: 0,
+      problemSolving: 0,
+      understanding: 0,
+    };
+
+    let skillCount = 0;
+    completedList.forEach((item) => {
+      const rep = item.report;
+      if (rep && rep.evaluated !== false) {
+        if (rep.correctnessScore || rep.technicalAccuracy) {
+          skillAverages.technical += Number(rep.correctnessScore || rep.technicalAccuracy || 0);
+        }
+        if (rep.communicationScore || rep.communicationClarity) {
+          skillAverages.communication += Number(rep.communicationScore || rep.communicationClarity || 0);
+        }
+        if (rep.confidenceScore) {
+          skillAverages.confidence += Number(rep.confidenceScore || 0);
+        }
+        if (rep.depthScore || rep.completeness) {
+          skillAverages.problemSolving += Number(rep.depthScore || rep.completeness || 0);
+        }
+        if (rep.understandingScore) {
+          skillAverages.understanding += Number(rep.understandingScore || 0);
+        }
+        skillCount++;
+      }
+    });
+
+    if (skillCount > 0) {
+      Object.keys(skillAverages).forEach((k) => {
+        skillAverages[k] = Number((skillAverages[k] / skillCount).toFixed(1));
+      });
+    }
+
+    return {
+      total,
+      completed: completedList.length,
+      inProgress: inProgressList.length,
+      avgScore,
+      highestScore,
+      totalMinutes,
+      completionRate,
+      scoreImprovement,
+      typeCounts,
+      skillAverages,
+      hasEvaluationData: evaluatedScores.length > 0,
+      inProgressSession: inProgressList[0] || null,
+    };
+  }, [interviews]);
+
+  // Filter trend scores by date range
+  const trendData = useMemo(() => {
+    const completed = interviews
+      .filter((i) => i.interviewStatus === 'completed' || i.status === 'completed')
+      .map((i) => {
+        const rawDate = i.createdAt?.toDate ? i.createdAt.toDate() : new Date(i.createdAt || Date.now());
+        const score = i.overallScore ?? i.report?.overallScore;
+        return {
+          id: i.id,
+          date: rawDate,
+          score: typeof score === 'number' && !isNaN(score) ? score : null,
+          role: i.jobRole || i.roleTarget || 'Candidate',
+        };
+      })
+      .filter((i) => i.score !== null)
+      .reverse();
+
+    if (trendRange === 'all') return completed;
+
+    const now = Date.now();
+    const daysLimit = trendRange === '7d' ? 7 : trendRange === '30d' ? 30 : 90;
+    const cutoff = now - daysLimit * 24 * 60 * 60 * 1000;
+    return completed.filter((i) => i.date.getTime() >= cutoff);
+  }, [interviews, trendRange]);
+
+  // Dynamic recommendations based on actual evaluation scores
+  const recommendations = useMemo(() => {
+    const list = [];
+    if (analytics.completed === 0) {
+      list.push({
+        title: 'Complete Your First Mock Interview',
+        desc: 'Choose a target role or paste a job description to calibrate your baseline interview readiness.',
+        action: 'Start Interview Now',
+        href: '/interview/setup',
+        tag: 'High Priority',
+        tagColor: '#FF5A1F',
+      });
+      list.push({
+        title: 'Upload Your Resume for ATS Analysis',
+        desc: 'MockMate extracts projects and skills from your resume for personalized questions.',
+        action: 'Upload Resume',
+        href: '/resume',
+        tag: 'Recommended',
+        tagColor: '#0F172A',
+      });
+      list.push({
+        title: 'Practice Algorithmic Challenges',
+        desc: 'Solve curated technical problems in the Coding Arena with live test cases.',
+        action: 'Open Coding Arena',
+        href: '/coding',
+        tag: 'Technical Skills',
+        tagColor: '#2563EB',
+      });
+    } else {
+      if (analytics.skillAverages.technical > 0 && analytics.skillAverages.technical < 7.0) {
+        list.push({
+          title: 'Strengthen Technical Depth & Edge Cases',
+          desc: 'Your technical accuracy average is below 7.0. Practice explaining time/space trade-offs in depth.',
+          action: 'Practice Technical Sprint',
+          href: '/interview/setup',
+          tag: 'Focus Area',
+          tagColor: '#EF4444',
+        });
+      }
+      if (analytics.skillAverages.communication > 0 && analytics.skillAverages.communication < 7.5) {
+        list.push({
+          title: 'Structure Answers with the STAR Method',
+          desc: 'Structure your project experiences using Situation, Task, Action, and Measurable Result.',
+          action: 'Practice Behavioral Round',
+          href: '/interview/setup',
+          tag: 'Communication',
+          tagColor: '#F59E0B',
+        });
+      }
+      list.push({
+        title: 'Review Recent Evaluation Reports',
+        desc: 'Inspect detailed question feedback, ideal answers, and AI critiques from your completed sessions.',
+        action: 'Open Reports Vault',
+        href: '/history',
+        tag: 'Insights',
+        tagColor: '#10B981',
+      });
+      list.push({
+        title: 'Practice Coding Questions in Arena',
+        desc: 'Sharpen algorithmic problem solving across Arrays, Strings, and Trees with live test cases.',
+        action: 'Open Coding Arena',
+        href: '/coding',
+        tag: 'Coding Skills',
+        tagColor: '#2563EB',
+      });
+    }
+    return list;
+  }, [analytics]);
+
+  if (loading) {
+    return <DashboardLoadingState />;
+  }
 
   return (
-    <div style={layoutStyle}>
+    <div style={styles.layout}>
+      {/* ── A. SIDEBAR NAVIGATION ── */}
       <Sidebar />
 
-      <main style={mainContentStyle}>
-        {/* Welcome Hero Banner — Fluid and Impactful */}
-        <section style={heroCardStyle}>
-          <div style={{ flex: 1, minWidth: '280px' }}>
-            <div style={heroPillStyle}>
-              <Sparkles size={14} color="#FF5A1F" />
-              <span>AI PREPARATION SUITE</span>
-            </div>
-            <h1 style={heroTitleStyle}>Welcome back, {userName}!</h1>
-            <p style={heroDescStyle}>
-              Your AI-powered interview practice platform is primed. Practice using any job description without a resume, test your code in the sandbox arena, and audit your ATS match score.
-            </p>
+      {/* ── B. MAIN DASHBOARD CONTENT ── */}
+      <main style={styles.main}>
+        {/* 1. Executive Dashboard Header */}
+        <DashboardHeader
+          user={user}
+          analytics={analytics}
+          onNavigateSession={(id) => navigate(`/interview/${id}`)}
+        />
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '20px', flexWrap: 'wrap' }}>
-              <button
-                onClick={() => navigate('/interview/setup')}
-                style={primaryBtnStyle}
-              >
-                <Mic size={16} /> Start JD Mock Interview
-              </button>
-              <button
-                onClick={() => navigate('/interview/coding')}
-                style={secondaryBtnStyle}
-              >
-                <Code2 size={16} /> Open Coding Arena
-              </button>
-              <button
-                onClick={() => navigate('/resume/ats')}
-                style={secondaryBtnStyle}
-              >
-                <ScanText size={16} /> Scan Resume ATS
-              </button>
-            </div>
+        {/* 2. Onboarding Banner for Fresh Accounts */}
+        {analytics.total === 0 && (
+          <DashboardEmptyState
+            onStartInterview={() => navigate('/interview/setup')}
+          />
+        )}
+
+        {/* 3. 8 KPI Metrics Grid */}
+        <DashboardKpiGrid analytics={analytics} />
+
+        {/* 4. Analytics & Performance Section (Two-Column Layout) */}
+        <section style={styles.analyticsSection}>
+          <div style={styles.trendCol}>
+            <InterviewScoreTrend
+              trendData={trendData}
+              trendRange={trendRange}
+              onRangeChange={setTrendRange}
+            />
           </div>
-
-          <div style={heroStatBoxStyle}>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: '12px', color: '#6B675F', fontWeight: '600', textTransform: 'uppercase' }}>Available Credits</span>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0A0A0A', marginTop: '4px' }}>
-                {user?.credits ?? 100}
-              </div>
-              <Link to="/pricing" style={{ fontSize: '12px', color: '#FF5A1F', fontWeight: '700', textDecoration: 'none' }}>
-                + Add Credits
-              </Link>
-            </div>
+          <div style={styles.skillsCol}>
+            <SkillDiagnostics
+              skillAverages={analytics.skillAverages}
+              hasEvaluationData={analytics.hasEvaluationData}
+            />
           </div>
         </section>
 
-        {/* Real Metrics Grid — 4 Fluid Wide Columns */}
-        <div style={metricsGridStyle}>
-          <div style={statCardStyle}>
-            <span style={statLabelStyle}>Interviews Completed</span>
-            <div style={statValueWrapStyle}>
-              <span style={statNumberStyle}>{metrics.totalCompleted}</span>
-              <span style={statSubStyle}>/ {metrics.totalSessions} sessions</span>
-            </div>
+        {/* 5. Recent Interviews & Distribution Row */}
+        <section style={styles.dualSection}>
+          <div style={styles.tableCol}>
+            <RecentInterviewsTable interviews={interviews} />
           </div>
-
-          <div style={statCardStyle}>
-            <span style={statLabelStyle}>Average Score</span>
-            <div style={statValueWrapStyle}>
-              <span style={statNumberStyle}>{metrics.avgScore > 0 ? metrics.avgScore : '—'}</span>
-              <span style={statSubStyle}>/ 10</span>
-            </div>
-          </div>
-
-          <div style={statCardStyle}>
-            <span style={statLabelStyle}>Highest Performance</span>
-            <div style={statValueWrapStyle}>
-              <span style={{ ...statNumberStyle, color: '#16A34A' }}>
-                {metrics.bestScore > 0 ? metrics.bestScore : '—'}
-              </span>
-              <span style={statSubStyle}>/ 10</span>
-            </div>
-          </div>
-
-          <div style={statCardStyle}>
-            <span style={statLabelStyle}>Active Resume</span>
-            <div style={{ marginTop: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '700', color: '#0A0A0A', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                {activeResume ? activeResume.fileName : 'No active resume'}
-              </span>
-              <Link to="/resume" style={{ fontSize: '12px', color: '#FF5A1F', textDecoration: 'none', fontWeight: '700', marginTop: '2px', display: 'inline-block' }}>
-                {activeResume ? 'Manage Vault →' : 'Upload Resume →'}
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Launch Round Shortcuts — 4 Responsive Cards */}
-        <section style={{ marginTop: '36px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={sectionHeadingStyle}>Quick Preparation Tracks</h2>
-            <span style={{ fontSize: '13px', color: '#6B675F' }}>Instant access with zero barriers</span>
-          </div>
-
-          <div style={tracksGridStyle}>
-            {/* Track 1: JD-Based Mock */}
-            <div
-              onClick={() => navigate('/interview/setup')}
-              style={trackCardStyle}
-            >
-              <div style={trackIconStyle}>
-                <FileText size={24} color="#0A0A0A" />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={trackTitleStyle}>JD-Based Mock</h3>
-                <span style={miniTagStyle}>No Resume</span>
-              </div>
-              <p style={trackDescStyle}>Paste any job posting or job requirements. AI generates role-tailored questions.</p>
-              <span style={trackLinkStyle}>Configure Round →</span>
-            </div>
-
-            {/* Track 2: Technical Mock */}
-            <div
-              onClick={() => navigate('/interview/setup')}
-              style={trackCardStyle}
-            >
-              <div style={trackIconStyle}>
-                <Mic size={24} color="#0A0A0A" />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={trackTitleStyle}>Technical Mock</h3>
-                <span style={miniTagStyle}>Adaptive</span>
-              </div>
-              <p style={trackDescStyle}>System architecture, data structures, trade-offs, and conceptual depth.</p>
-              <span style={trackLinkStyle}>Start Technical →</span>
-            </div>
-
-            {/* Track 3: Coding Arena */}
-            <div
-              onClick={() => navigate('/interview/coding')}
-              style={trackCardStyle}
-            >
-              <div style={trackIconStyle}>
-                <Code2 size={24} color="#0A0A0A" />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={trackTitleStyle}>Coding Arena</h3>
-                <span style={miniTagStyle}>Monaco</span>
-              </div>
-              <p style={trackDescStyle}>Interactive Monaco editor with test suites, time complexity review, and sandbox runs.</p>
-              <span style={trackLinkStyle}>Enter Arena →</span>
-            </div>
-
-            {/* Track 4: HR & Behavioral */}
-            <div
-              onClick={() => navigate('/interview/setup')}
-              style={trackCardStyle}
-            >
-              <div style={trackIconStyle}>
-                <Award size={24} color="#0A0A0A" />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={trackTitleStyle}>HR & Behavioral</h3>
-                <span style={miniTagStyle}>STAR</span>
-              </div>
-              <p style={trackDescStyle}>Leadership principles, situational questions, conflict management, and culture fit.</p>
-              <span style={trackLinkStyle}>Practice HR →</span>
-            </div>
+          <div style={styles.distCol}>
+            <InterviewDistribution
+              typeCounts={analytics.typeCounts}
+              total={analytics.total}
+            />
           </div>
         </section>
 
-        {/* Recent Interviews Table — Full Width & Responsive */}
-        <section style={{ marginTop: '36px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={sectionHeadingStyle}>Recent Interview Sessions</h2>
-            <Link to="/interview/history" style={{ fontSize: '13px', fontWeight: '700', color: '#6B675F', textDecoration: 'none' }}>
-              View Complete History →
-            </Link>
+        {/* 6. Activity Feed & Recommendations Row */}
+        <section style={styles.dualSection}>
+          <div style={styles.halfCol}>
+            <RecentActivityFeed
+              interviews={interviews}
+              activeResume={activeResume}
+              user={user}
+            />
           </div>
-
-          <div style={tableCardStyle}>
-            {recentInterviews.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {recentInterviews.map((sess) => (
-                  <div key={sess.id} style={interviewRowStyle}>
-                    <div style={{ flex: 1, minWidth: '200px' }}>
-                      <span style={{ fontSize: '15px', fontWeight: '700', color: '#0A0A0A' }}>
-                        {sess.roleTarget || sess.role || 'Software Engineer'}
-                      </span>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '4px', fontSize: '12px', color: '#6B675F', flexWrap: 'wrap' }}>
-                        <span>{(sess.type || sess.mode || 'technical').toUpperCase()}</span>
-                        <span>•</span>
-                        <span>{(sess.difficulty || 'medium').toUpperCase()}</span>
-                        <span>•</span>
-                        <span>{new Date(sess.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      {sess.overallScore != null || sess.report?.overallScore != null ? (
-                        <div style={scoreBadgeStyle}>
-                          <b>{sess.overallScore ?? sess.report?.overallScore}</b> / 10
-                        </div>
-                      ) : (
-                        <span style={pendingBadgeStyle}>{sess.status || 'Active'}</span>
-                      )}
-
-                      {sess.status === 'completed' || sess.report ? (
-                        <Link to={`/report/${sess.id}`} style={rowActionBtnStyle}>
-                          View Report →
-                        </Link>
-                      ) : (
-                        <Link to={`/interview/${sess.id}`} style={rowActionBtnStyle}>
-                          Resume Session →
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ padding: '44px 20px', textAlign: 'center', color: '#6B675F' }}>
-                <Clock size={36} color="#A39E93" style={{ marginBottom: '10px' }} />
-                <p style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: '500' }}>No mock interview sessions recorded yet.</p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/interview/setup')}
-                  style={primaryBtnStyle}
-                >
-                  <Play size={14} /> Launch Your First Mock Interview
-                </button>
-              </div>
-            )}
+          <div style={styles.halfCol}>
+            <RecommendedActions recommendations={recommendations} />
           </div>
         </section>
       </main>
@@ -370,257 +413,56 @@ export default function DashboardPage() {
   );
 }
 
-// ─── Inline Styles adhering strictly to InterviewPilot Palette ────────────────
-const layoutStyle = {
-  display: 'flex',
-  minHeight: '100vh',
-  background: '#F2EEE6',
-  color: '#0A0A0A',
-  fontFamily: "'Space Grotesk', system-ui, sans-serif",
-};
-
-const mainContentStyle = {
-  flex: 1,
-  minWidth: 0,
-  padding: 'clamp(20px, 3vw, 40px)',
-  maxWidth: '1600px',
-  width: '100%',
-  margin: '0 auto',
-  boxSizing: 'border-box',
-};
-
-const heroCardStyle = {
-  background: '#FFFFFF',
-  border: '1px solid #E3DED2',
-  borderRadius: '24px',
-  padding: 'clamp(24px, 4vw, 36px)',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '24px',
-  flexWrap: 'wrap',
-  marginBottom: '28px',
-};
-
-const heroPillStyle = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  background: 'rgba(255, 90, 31, 0.08)',
-  border: '1px solid rgba(255, 90, 31, 0.2)',
-  padding: '4px 10px',
-  borderRadius: '999px',
-  fontSize: '11px',
-  fontWeight: '700',
-  color: '#FF5A1F',
-  letterSpacing: '0.04em',
-  marginBottom: '10px',
-};
-
-const heroTitleStyle = {
-  fontSize: 'clamp(26px, 3vw, 36px)',
-  fontWeight: '700',
-  letterSpacing: '-0.02em',
-  margin: '0 0 10px',
-};
-
-const heroDescStyle = {
-  fontSize: '15px',
-  color: '#6B675F',
-  lineHeight: '1.5',
-  margin: 0,
-};
-
-const heroStatBoxStyle = {
-  background: '#FBFAF7',
-  border: '1px solid #E3DED2',
-  borderRadius: '16px',
-  padding: '20px 28px',
-  minWidth: '180px',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-};
-
-const primaryBtnStyle = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '8px',
-  padding: '12px 24px',
-  borderRadius: '999px',
-  background: '#0A0A0A',
-  color: '#F2EEE6',
-  border: 'none',
-  fontFamily: 'inherit',
-  fontSize: '14px',
-  fontWeight: '600',
-  cursor: 'pointer',
-  transition: 'transform 0.15s ease',
-};
-
-const secondaryBtnStyle = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '8px',
-  padding: '12px 24px',
-  borderRadius: '999px',
-  background: '#FBFAF7',
-  color: '#0A0A0A',
-  border: '1px solid #E3DED2',
-  fontFamily: 'inherit',
-  fontSize: '14px',
-  fontWeight: '600',
-  cursor: 'pointer',
-};
-
-const metricsGridStyle = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-  gap: '16px',
-};
-
-const statCardStyle = {
-  background: '#FFFFFF',
-  border: '1px solid #E3DED2',
-  borderRadius: '18px',
-  padding: '22px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
-};
-
-const statLabelStyle = {
-  fontSize: '12px',
-  color: '#6B675F',
-  fontWeight: '600',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const statValueWrapStyle = {
-  display: 'flex',
-  alignItems: 'baseline',
-  gap: '6px',
-  marginTop: '8px',
-};
-
-const statNumberStyle = {
-  fontFamily: "'Space Grotesk', system-ui, sans-serif",
-  fontSize: '34px',
-  fontWeight: '700',
-  lineHeight: 1,
-};
-
-const statSubStyle = {
-  fontSize: '13px',
-  color: '#6B675F',
-};
-
-const sectionHeadingStyle = {
-  fontFamily: "'Space Grotesk', system-ui, sans-serif",
-  fontSize: '20px',
-  fontWeight: '700',
-  margin: 0,
-  letterSpacing: '-0.01em',
-};
-
-const tracksGridStyle = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-  gap: '16px',
-};
-
-const trackCardStyle = {
-  background: '#FFFFFF',
-  border: '1px solid #E3DED2',
-  borderRadius: '18px',
-  padding: '22px',
-  cursor: 'pointer',
-  transition: 'transform 0.15s ease, border-color 0.15s ease',
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const trackIconStyle = {
-  width: '46px',
-  height: '46px',
-  borderRadius: '12px',
-  background: 'rgba(244, 207, 99, 0.35)',
-  display: 'grid',
-  placeItems: 'center',
-  marginBottom: '14px',
-};
-
-const trackTitleStyle = {
-  fontSize: '16px',
-  fontWeight: '700',
-  margin: 0,
-};
-
-const miniTagStyle = {
-  fontSize: '10px',
-  fontWeight: '700',
-  background: '#FBFAF7',
-  border: '1px solid #E3DED2',
-  padding: '2px 6px',
-  borderRadius: '999px',
-  color: '#6B675F',
-};
-
-const trackDescStyle = {
-  fontSize: '13px',
-  color: '#6B675F',
-  lineHeight: '1.45',
-  margin: '8px 0 16px',
-  flex: 1,
-};
-
-const trackLinkStyle = {
-  fontSize: '13px',
-  fontWeight: '700',
-  color: '#0A0A0A',
-};
-
-const tableCardStyle = {
-  background: '#FFFFFF',
-  border: '1px solid #E3DED2',
-  borderRadius: '18px',
-  overflow: 'hidden',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
-};
-
-const interviewRowStyle = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '18px 24px',
-  borderBottom: '1px solid #E3DED2',
-  gap: '16px',
-  flexWrap: 'wrap',
-};
-
-const scoreBadgeStyle = {
-  background: '#F4CF63',
-  color: '#0A0A0A',
-  padding: '4px 12px',
-  borderRadius: '999px',
-  fontSize: '13px',
-  fontWeight: '600',
-};
-
-const pendingBadgeStyle = {
-  background: '#FBFAF7',
-  border: '1px solid #E3DED2',
-  color: '#6B675F',
-  padding: '4px 10px',
-  borderRadius: '999px',
-  fontSize: '12px',
-  textTransform: 'uppercase',
-  fontWeight: '600',
-};
-
-const rowActionBtnStyle = {
-  fontSize: '13px',
-  fontWeight: '700',
-  color: '#0A0A0A',
-  textDecoration: 'none',
+const styles = {
+  layout: {
+    display: 'flex',
+    minHeight: '100vh',
+    background: '#F8FAFC',
+    color: '#0F172A',
+    fontFamily: "var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)",
+  },
+  main: {
+    flex: 1,
+    minWidth: 0,
+    padding: 'clamp(20px, 2.5vw, 32px)',
+    maxWidth: '1520px',
+    width: '100%',
+    margin: '0 auto',
+    boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '24px',
+  },
+  analyticsSection: {
+    display: 'flex',
+    gap: '20px',
+    width: '100%',
+    flexWrap: 'wrap',
+  },
+  trendCol: {
+    flex: '1.6 1 480px',
+    minWidth: '320px',
+  },
+  skillsCol: {
+    flex: '1 1 320px',
+    minWidth: '280px',
+  },
+  dualSection: {
+    display: 'flex',
+    gap: '20px',
+    width: '100%',
+    flexWrap: 'wrap',
+  },
+  tableCol: {
+    flex: '1.7 1 520px',
+    minWidth: '320px',
+  },
+  distCol: {
+    flex: '1 1 300px',
+    minWidth: '260px',
+  },
+  halfCol: {
+    flex: '1 1 380px',
+    minWidth: '300px',
+  },
 };

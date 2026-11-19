@@ -1,5 +1,5 @@
 // src/components/Logo.jsx
-// Standardized reusable InterviewPilot AI logo component.
+// Standardized reusable MockMate AI logo component.
 // Enforces exact specifications across desktop, tablet, and mobile:
 // - Icon: 40px x 40px (flex: none)
 // - Text: 20px, uppercase, Anton font, 'AI' in red (#EC4F5F)
@@ -75,7 +75,7 @@ export default function Logo({
         <circle cx="31.5" cy="29" r="1.8" fill="#F4CF63" />
       </svg>
       <span>
-        InterviewPilot <em>AI</em>
+        MockMate <em>AI</em>
       </span>
     </>
   );
